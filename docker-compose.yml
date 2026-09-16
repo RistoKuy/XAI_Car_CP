@@ -22,12 +22,13 @@ services:
     ports:
       - "${PGADMIN_PORT:-5050}:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@local.test}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@carprice.app}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
       # Desktop mode = tanpa layar login; server carprice terdaftar otomatis via servers.json.
       PGADMIN_CONFIG_SERVER_MODE: "False"
-      PGADMIN_CONFIG_DESKTOP_USER: ${PGADMIN_DEFAULT_EMAIL:-admin@local.test}
+      PGADMIN_CONFIG_DESKTOP_USER: "'${PGADMIN_DEFAULT_EMAIL:-admin@carprice.app}'"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_CONFIG_GLOBALLY_DELIVERABLE: "False"
       PGADMIN_DISABLE_POSTFIX: "True"
     volumes:
       - ./infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
@@ -38,8 +39,8 @@ services:
 
   backend:
     build: ./backend
-    ports:
-      - "${API_PORT:-8000}:8000"
+    expose:
+      - "8000"
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://app@postgres:5432/carprice}
       MODEL_DIR: /app/artifacts
@@ -51,6 +52,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
 
 volumes:
   postgres_data:
