@@ -1,0 +1,5 @@
+{
+  "explainer": "TreeExplainer",
+  "background_n": 100,
+  "note": "SHAP run di backend saat inference"
+}

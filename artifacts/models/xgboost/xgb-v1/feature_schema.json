@@ -1,0 +1,12 @@
+{
+  "features": [
+    "year",
+    "km_1",
+    "brand",
+    "machine_type",
+    "location",
+    "brand_type"
+  ],
+  "target": "price",
+  "km_choice": "km_1 (KM_2 dropped, corr~0.999)"
+}

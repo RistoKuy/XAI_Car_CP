@@ -1,0 +1,53 @@
+# Env & secrets (jangan commit .env asli)
+.env
+.env.local
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env_venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ML artifacts: versioned artifact kecil (model.json, *.joblib, *.json) di-track
+# hanya abaikan artefak eksperimen besar / lokal
+mlruns/
+lightning_logs/
+*.pkl
+data/processed/
+
+# Data olahan (raw tetap di-track minimal untuk CP: dataset.csv)
+data/*.parquet
+*.sqlite
+*.db
+
+# Node / React
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+*.log
+npm-debug.log*
+
+# Docker / Postgres
+postgres_data/
+pgdata/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
