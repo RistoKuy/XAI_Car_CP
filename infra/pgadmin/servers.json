@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "carprice (local)",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "carprice",
+      "Username": "app",
+      "SSLMode": "prefer",
+      "Shared": true
+    }
+  }
+}
