@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     DATASET_SOURCE: str = "dataset.csv"
     SEED_ON_STARTUP: bool = True
     SEED_CSV_PATH: str = "./data/processed/used_filtered.csv"
+    SEED_FALLBACK_CSV_PATH: str = "/app/dataset.csv"
 
     @property
     def cors_list(self) -> list[str]:

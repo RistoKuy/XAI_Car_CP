@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     try:
         mv = ensure_active_version(db)
         s = get_settings()
-        seed_if_empty(db, mv.dataset_id, s.SEED_CSV_PATH, s.SEED_ON_STARTUP)
+        seed_if_empty(db, mv.dataset_id, s.SEED_CSV_PATH, s.SEED_ON_STARTUP, s.SEED_FALLBACK_CSV_PATH)
     finally:
         db.close()
     yield

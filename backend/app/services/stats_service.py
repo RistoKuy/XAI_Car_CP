@@ -33,13 +33,14 @@ def dataset_stats(db: Session, bins: int = 12, f: dict | None = None) -> dict:
     return stats
 
 
-def seed_if_empty(db: Session, dataset_id, path: str, enabled: bool) -> int:
+def seed_if_empty(db: Session, dataset_id, path: str, enabled: bool, fallback: str | None = None) -> int:
     if not enabled or listing_repository.count(db) > 0:
         return 0
-    try:
-        n = listing_repository.seed_from_csv(db, dataset_id, path)
-        logger.info("seeded %d listings from %s", n, path)
-        return n
-    except OSError as e:
-        logger.warning("seed skipped (%s not found): %s", path, e)
-        return 0
+    for candidate in ([path] + ([fallback] if fallback and fallback != path else [])):
+        try:
+            n = listing_repository.seed_from_csv(db, dataset_id, candidate)
+            logger.info("seeded %d listings from %s", n, candidate)
+            return n
+        except OSError as e:
+            logger.warning("seed skipped (%s not found): %s", candidate, e)
+    return 0

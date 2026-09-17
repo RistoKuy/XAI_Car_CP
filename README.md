@@ -252,7 +252,8 @@ bekas), `model_versions` (mini model registry, satu baris aktif), `model_metrics
 
 Seed metadata otomatis saat backend start. Tabel `listings` ikut di-seed otomatis
 bila kosong dan file CSV tersedia (`SEED_CSV_PATH`, di compose ter-mount dari
-`./data/processed`). Matikan dengan `SEED_ON_STARTUP=false`. Seed manual
+`./data/processed`; bila belum ada, fallback ke `SEED_FALLBACK_CSV_PATH` =
+`dataset.csv` mentah yang ikut ter-mount di `/app/dataset.csv`). Matikan dengan `SEED_ON_STARTUP=false`. Seed manual
 penuh (dataset + listings + model + metrik):
 
 ```bash
