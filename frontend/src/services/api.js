@@ -32,4 +32,10 @@ async function request(path, { method = "GET", body, signal } = {}) {
 export const getHealth = (opts) => request("/health", opts);
 export const getActiveModel = (opts) => request("/models/active", opts);
 export const getPrediction = (id, opts) => request(`/predictions/${id}`, opts);
+export const getDatasetStats = (params = {}, opts) => {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== "" && v != null)
+  ).toString();
+  return request(`/stats/dataset${qs ? `?${qs}` : ""}`, opts);
+};
 export const createPrediction = (payload, opts) => request("/predictions", { ...opts, method: "POST", body: payload });

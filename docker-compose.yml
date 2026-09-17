@@ -47,8 +47,10 @@ services:
       MODEL_VERSION: ${MODEL_VERSION:-xgb-v1}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:80}
       INFERENCE_TIMEOUT_S: ${INFERENCE_TIMEOUT_S:-10}
+      SEED_CSV_PATH: /app/seed/used_filtered.csv
     volumes:
       - ./artifacts/models/xgboost/${MODEL_VERSION:-xgb-v1}:/app/artifacts:ro
+      - ./data/processed:/app/seed:ro
     depends_on:
       postgres:
         condition: service_healthy

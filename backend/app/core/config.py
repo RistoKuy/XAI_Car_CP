@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     MAX_KM: int = 1000000
     DATASET_NAME: str = "carprice-used"
     DATASET_SOURCE: str = "dataset.csv"
+    SEED_ON_STARTUP: bool = True
+    SEED_CSV_PATH: str = "./data/processed/used_filtered.csv"
 
     @property
     def cors_list(self) -> list[str]:

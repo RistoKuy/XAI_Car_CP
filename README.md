@@ -200,6 +200,7 @@ dataset + versi model + metrik.
 | POST | `/predictions` | Prediksi + explanation, log ke PostgreSQL (best-effort) |
 | GET | `/models/active` | Metadata model aktif + metrik per split |
 | GET | `/predictions/{id}` | Detail input + prediksi + explanation |
+| GET | `/stats/dataset` | Statistik database listings (total, harga, tahun, km, merek, lokasi, histogram; filter opsional `brand`, `location`, `machine_type`, `year_min`, `year_max`) |
 
 Contoh request:
 
@@ -224,12 +225,19 @@ Kode: `backend/app/{api,core,db,ml,repositories,schemas,services}`.
 
 ## 6. Frontend (ReactJS)
 
-Halaman `Beranda` (penjelasan + metrik model live dari API) dan `Hitung estimasi`
+Halaman `Beranda` (penjelasan + metrik model live dari API), `Data` (dashboard
+statistik database listings: tata letak lebar di desktop dan ringkas di mobile,
+ringkasan, histogram harga, perbandingan transmisi, merek dan lokasi berdampingan,
+histogram tahun penuh, semuanya dengan tooltip hover/sentuh/fokus dan
+scroll-reveal), dan `Hitung estimasi`
 (formulir -> kartu hasil -> grafik SHAP). Komponen sesuai blueprint: `VehicleForm`,
 `PredictionCard`, `ShapWaterfall`, `ShapBarChart`, `LoadingState`, plus
 `services/api.js`, `hooks/usePrediction.js`, `utils/formatCurrency.js`.
 
-Aturan yang dipegang: tanpa emoji (ikon SVG inline yang relevan), hasil disebut
+Aturan yang dipegang: styling Tailwind CSS (tema dari palet calm yang sama),
+satu aplikasi dua shell via hook `useWindowSize` (batas 768px): desktop dengan
+Sidebar statis, mobile dengan Hamburger Menu + Bottom Navigation Bar,
+tanpa emoji (ikon SVG inline yang relevan), hasil disebut
 **estimasi model** bukan harga pasti, opsi dropdown dari dataset asli (47 merek,
 21 lokasi), semua angka dari API, state kosong/loading/error informatif (sebab +
 aksi), responsif dan keyboard-only friendly (skip link, kontrol native, fokus
@@ -242,7 +250,10 @@ bekas), `model_versions` (mini model registry, satu baris aktif), `model_metrics
 (metrik per split: test/validation), `predictions` (`input_payload` +
 `shap_payload` sebagai JSONB untuk audit trail).
 
-Seed metadata otomatis saat backend start. Seed 21.553 listings manual:
+Seed metadata otomatis saat backend start. Tabel `listings` ikut di-seed otomatis
+bila kosong dan file CSV tersedia (`SEED_CSV_PATH`, di compose ter-mount dari
+`./data/processed`). Matikan dengan `SEED_ON_STARTUP=false`. Seed manual
+penuh (dataset + listings + model + metrik):
 
 ```bash
 # Postgres harus dapat dijangkau, mis. port-forward atau DATABASE_URL lokal
@@ -273,6 +284,7 @@ Bila butuh password (server bersama/produksi):
 Variabel utama: `DATABASE_URL`, `POSTGRES_DB/USER/PASSWORD/HOST_AUTH_METHOD`,
 `PGADMIN_PORT/DEFAULT_EMAIL`, `MODEL_DIR`, `MODEL_VERSION`,
 `CORS_ORIGINS`, `INFERENCE_TIMEOUT_S`, `RANDOM_SEED`, `DATASET_PATH`,
+`SEED_ON_STARTUP`, `SEED_CSV_PATH`,
 `VITE_API_URL`, `VITE_API_TIMEOUT_MS`.
 
 ## 9. Deploy dan menjalankan

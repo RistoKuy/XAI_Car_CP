@@ -12,3 +12,11 @@ export function formatSignedIDR(n) {
 export function formatNumber(n) {
   return new Intl.NumberFormat("id-ID").format(Number(n) || 0);
 }
+
+export function formatShortIDR(n) {
+  const v = Number(n) || 0;
+  const trim = (x) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(x);
+  if (v >= 1e9) return `Rp${trim(v / 1e9)} M`;
+  if (v >= 1e6) return `Rp${trim(v / 1e6)} jt`;
+  return formatIDR(v);
+}

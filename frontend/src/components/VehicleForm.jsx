@@ -34,11 +34,11 @@ function validate(v) {
 
 function Field({ id, label, error, children, hint }) {
   return (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
+    <div>
+      <label htmlFor={id} className="mb-1 block font-bold">{label}</label>
       {children}
-      {hint && !error && <p className="hint" id={`${id}-hint`}>{hint}</p>}
-      {error && <p className="error" id={`${id}-error`} role="alert">{error}</p>}
+      {hint && !error && <p className="mt-1 text-sm text-muted" id={`${id}-hint`}>{hint}</p>}
+      {error && <p className="mt-1 text-[0.9rem] font-semibold text-rust" id={`${id}-error`} role="alert">{error}</p>}
     </div>
   );
 }
@@ -70,13 +70,14 @@ export function VehicleForm({ onSubmit, loading }) {
 
   const inputProps = (id) => ({
     id,
+    className: "field-input",
     "aria-invalid": errors[id] ? "true" : undefined,
     "aria-describedby": errors[id] ? `${id}-error` : `${id}-hint`,
   });
 
   return (
     <form onSubmit={submit} noValidate aria-label="Formulir data kendaraan">
-      <div className="form-grid">
+      <div className="my-6 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-x-5">
         <Field id="brand" label="Merek" error={errors.brand}>
           <select {...inputProps("brand")} value={values.brand} onChange={set("brand")}>
             <option value="">Pilih merek</option>
@@ -115,7 +116,7 @@ export function VehicleForm({ onSubmit, loading }) {
             placeholder="cth: 45000" min="0" step="1" inputMode="numeric" />
         </Field>
       </div>
-      <button type="submit" className="primary" disabled={loading}>
+      <button type="submit" className="btn-primary" disabled={loading}>
         {loading ? "Menghitung..." : "Hitung estimasi"}
       </button>
     </form>

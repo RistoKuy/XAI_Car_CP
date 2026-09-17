@@ -10,6 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 os.environ["MODEL_DIR"] = os.path.join(ROOT, "artifacts", "models", "xgboost", "xgb-v1")
 os.environ["MODEL_VERSION"] = "xgb-v1"
 os.environ["INFERENCE_TIMEOUT_S"] = "30"
+os.environ["SEED_ON_STARTUP"] = "false"
 
 import pytest
 from fastapi.testclient import TestClient

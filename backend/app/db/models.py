@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Numeric, String, func
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Uuid
@@ -24,7 +24,7 @@ class Dataset(Base):
 
 class Listing(Base):
     __tablename__ = "listings"
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     dataset_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("datasets.id"))
     listing_type: Mapped[str] = mapped_column(String(16))
     brand: Mapped[str] = mapped_column(String(64))
@@ -65,7 +65,7 @@ class Prediction(Base):
     __tablename__ = "predictions"
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     model_version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("model_versions.id"))
-    listing_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("listings.id"), nullable=True)
+    listing_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("listings.id"), nullable=True)
     predicted_price: Mapped[int] = mapped_column(BigInteger)
     input_payload: Mapped[dict] = mapped_column(PayloadJSON)
     shap_payload: Mapped[dict] = mapped_column(PayloadJSON)
