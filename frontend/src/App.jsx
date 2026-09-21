@@ -3,15 +3,17 @@ import { useWindowSize } from "./hooks/useWindowSize.js";
 import { DesktopView } from "./components/DesktopView.jsx";
 import { MobileView } from "./components/MobileView.jsx";
 
+// Satu aplikasi, dua shell: <768px Bottom Navigation + hamburger,
+// >=768px Sidebar statis. Ganti shell me-remount halaman
+// (state formulir tidak terbawa saat memutar/me-resize layar).
+// Entry User Portal saja: Developer Portal hidup di entry + port
+// terpisah (developer.html) dan tidak ada di bundle ini.
 function route() {
   if (window.location.hash === "#/prediksi") return "prediksi";
   if (window.location.hash === "#/data") return "data";
   return "beranda";
 }
 
-// Satu aplikasi, dua shell: <768px Bottom Navigation + hamburger,
-// >=768px Sidebar statis. Ganti shell me-remount halaman
-// (state formulir tidak terbawa saat memutar/me-resize layar).
 export function App() {
   const { isMobile } = useWindowSize(768);
   const [page, setPage] = useState(route());

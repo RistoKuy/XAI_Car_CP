@@ -10,4 +10,14 @@ export default defineConfig({
       "/api": { target: "http://localhost:8000", changeOrigin: true },
     },
   },
+  build: {
+    // Dua entry terpisah: User Portal (index.html) dan
+    // Developer Portal (developer.html) di port berbeda.
+    rollupOptions: {
+      input: {
+        main: "index.html",
+        developer: "developer.html",
+      },
+    },
+  },
 });

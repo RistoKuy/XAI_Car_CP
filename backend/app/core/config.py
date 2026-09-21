@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     SEED_ON_STARTUP: bool = True
     SEED_CSV_PATH: str = "./data/processed/used_filtered.csv"
     SEED_FALLBACK_CSV_PATH: str = "/app/dataset.csv"
+    MAX_UPLOAD_MB: int = 50
 
     @property
     def cors_list(self) -> list[str]:

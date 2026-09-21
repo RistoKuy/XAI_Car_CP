@@ -19,7 +19,26 @@ class Dataset(Base):
     name: Mapped[str] = mapped_column(String(128))
     source: Mapped[str] = mapped_column(String(256))
     version: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(32), default="READY")
+    row_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    valid_rows: Mapped[int] = mapped_column(BigInteger, default=0)
+    rejected_rows: Mapped[int] = mapped_column(BigInteger, default=0)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EtlJob(Base):
+    __tablename__ = "etl_jobs"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    dataset_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("datasets.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="SUCCEEDED")
+    mode: Mapped[str] = mapped_column(String(16), default="append")
+    filename: Mapped[str] = mapped_column(String(256), default="")
+    total_rows: Mapped[int] = mapped_column(BigInteger, default=0)
+    valid_rows: Mapped[int] = mapped_column(BigInteger, default=0)
+    rejected_rows: Mapped[int] = mapped_column(BigInteger, default=0)
+    error_message: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    started_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Listing(Base):
