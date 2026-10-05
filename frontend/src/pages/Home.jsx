@@ -19,11 +19,11 @@ export function Home() {
   return (
     <div className="home-page mx-auto max-w-6xl">
       <div className="home-intro">
-      <span className="eyebrow">Research-grade estimation</span>
-      <h1 className="mb-3 mt-3 text-4xl font-bold leading-[1.04] sm:text-6xl">Nilai mobil bekas dengan konteks yang jelas.</h1>
+      <div className="home-kicker"><span className="home-kicker-mark">OV</span><span>OtoValue untuk pasar mobil bekas</span></div>
+      <h1 className="mb-3 mt-5 text-4xl font-bold leading-[1.04] sm:text-6xl">Kenali nilai mobil sebelum mengambil keputusan.</h1>
       <p className="max-w-[38rem] text-lg text-muted sm:text-xl">
-        Masukkan data kendaraan, model XGBoost menghitung estimasi harga,
-        lalu SHAP menunjukkan faktor apa yang menaikkan atau menurunkannya.
+        OtoValue membantu membaca estimasi harga mobil bekas dengan data yang terbuka:
+        masukkan kendaraan, lihat hasilnya, dan pahami alasan di balik angka tersebut.
       </p>
       <p className="mt-7 flex flex-wrap gap-3">
         <a className="btn-primary" href="#/prediksi">Hitung estimasi mobil</a>
@@ -41,6 +41,20 @@ export function Home() {
             <div><dt className="text-sm text-muted">MAPE (test)</dt><dd className="font-bold tabular-nums">{Number(test.mape).toFixed(2)}%</dd></div>
             <div><dt className="text-sm text-muted">MAE (test)</dt><dd className="font-bold tabular-nums">Rp {formatNumber(test.mae)}</dd></div>
           </dl>
+        )}
+        {model && test && (
+          <aside className="model-disclaimer" aria-label="Penjelasan performa model">
+            <strong>Bagaimana membaca performanya?</strong>
+            <p>
+              Pada data uji, model menemukan pola harga dengan baik (R² {Number(test.r2).toFixed(2)}).
+              MAPE {Number(test.mape).toFixed(1)}% berarti selisih rata-rata sekitar angka tersebut dari harga pada data uji,
+              sedangkan MAE menunjukkan rata-rata selisih sekitar Rp {formatNumber(Math.round(test.mae))}.
+            </p>
+            <p className="mb-0">
+              Angka ini adalah perkiraan performa pada data uji, bukan jaminan harga transaksi.
+              Kondisi mobil, kelengkapan, waktu, dan negosiasi dapat membuat harga sebenarnya berbeda.
+            </p>
+          </aside>
         )}
         {!model && !error && <p role="status">Memuat info model...</p>}
         {error && <p role="alert">Info model tidak dapat dimuat: {error}</p>}

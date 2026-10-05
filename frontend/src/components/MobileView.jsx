@@ -74,7 +74,7 @@ export function MobileView({ page, theme, onToggleTheme }) {
         </a>
         <div className="flex items-center gap-1">
         <button type="button" className="theme-toggle theme-toggle-icon" onClick={onToggleTheme} aria-label={`Gunakan mode ${theme === "light" ? "gelap" : "terang"}`}>
-          <span aria-hidden="true">{theme === "light" ? "D" : "L"}</span>
+          <span aria-hidden="true">{theme === "light" ? "☼" : "◐"}</span>
         </button>
         <button
           type="button"
