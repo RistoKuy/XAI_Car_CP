@@ -1,4 +1,4 @@
-# XAI Car Price (CP) — Prediksi Harga Mobil Bekas dengan XGBoost + SHAP
+# OtoValue: Implementasi dan Evaluasi Sistem Prediksi Harga Mobil Bekas
 
 Implementasi dan evaluasi model XGBoost untuk prediksi harga mobil bekas dengan
 Explainable Artificial Intelligence menggunakan SHAP. Proof-of-concept end-to-end:

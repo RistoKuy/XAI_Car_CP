@@ -1,6 +1,6 @@
 # Agent Execution Rules & Documentation Router
 
-> **Project (CP):** Implementasi dan Evaluasi Model XGBoost untuk Prediksi Harga Mobil Bekas dengan Explainable Artificial Intelligence Menggunakan SHAP
+> **Project:** OtoValue: Implementasi dan Evaluasi Sistem Prediksi Harga Mobil Bekas
 
 ## Ponytail Execution Mode: ULTRA
 - **YAGNI / Zero Bloat**: Delete, omit, or simplify unused code/abstractions. Build the absolute minimum working logic.
@@ -136,7 +136,7 @@ digabungkan ke file ini dan tidak lagi dipelihara sebagai dokumen terpisah.
 
 ## Scope and Actors
 
-AutoValue adalah proof-of-concept end-to-end untuk prediksi harga mobil bekas
+OtoValue adalah proof-of-concept end-to-end untuk prediksi harga mobil bekas
 dengan XGBoost dan explainability native. Dua aktor yang didukung:
 
 - **User Umum**: input kendaraan, menerima estimasi harga, membaca kontribusi fitur, dan melihat statistik dataset.

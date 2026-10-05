@@ -54,7 +54,7 @@ export function BrandMark({ compact = false }) {
         <circle cx="7.5" cy="18" r="1.4" fill="currentColor" />
         <circle cx="16.5" cy="18" r="1.4" fill="currentColor" />
       </svg>
-      <span>{compact ? "Estimasi" : "Estimasi Mobil Bekas"}</span>
+      <span>OtoValue</span>
     </span>
   );
 }

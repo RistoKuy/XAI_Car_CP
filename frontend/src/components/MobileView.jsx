@@ -69,7 +69,7 @@ export function MobileView({ page, theme, onToggleTheme }) {
   return (
     <div className="app-shell min-h-screen bg-paper">
       <header className="app-topbar sticky top-0 z-20 flex items-center justify-between border-b-2 border-ink bg-paper px-4 py-3">
-        <a href="#/" className="shrink-0 no-underline" aria-label="Estimasi Mobil Bekas, ke beranda">
+        <a href="#/" className="shrink-0 no-underline" aria-label="OtoValue, ke beranda">
           <BrandMark compact />
         </a>
         <div className="flex items-center gap-1">

@@ -20,7 +20,7 @@ export function DesktopView({ page, theme, onToggleTheme }) {
   return (
     <div className="app-shell flex min-h-screen bg-paper">
       <aside className="app-sidebar sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r-2 border-ink bg-white px-5 py-6" aria-label="Sidebar">
-        <a href="#/" className="no-underline" aria-label="Estimasi Mobil Bekas, ke beranda">
+        <a href="#/" className="no-underline" aria-label="OtoValue, ke beranda">
           <BrandMark />
         </a>
         <nav aria-label="Navigasi utama" className="mt-8 grid gap-1">
@@ -51,7 +51,7 @@ export function DesktopView({ page, theme, onToggleTheme }) {
       </aside>
       <div className="min-w-0 flex-1">
         <header className="app-topbar flex items-center justify-between px-6 py-5 lg:px-10">
-          <div><span className="eyebrow">AutoValue / User portal</span><p className="m-0 text-sm text-muted">Estimasi harga mobil bekas berbasis data</p></div>
+          <div><span className="eyebrow">OtoValue / User portal</span><p className="m-0 text-sm text-muted">Estimasi harga mobil bekas berbasis data</p></div>
           <span className="status-dot"><i aria-hidden="true" /> Model aktif</span>
         </header>
         <main id="konten" className="px-6 pb-8 lg:px-10">
