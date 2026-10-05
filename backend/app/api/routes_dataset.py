@@ -20,13 +20,15 @@ def upload_dataset(mode: str = Form("append"), file: UploadFile = File(...),
         raise HTTPException(status_code=400, detail=str(e)) from e
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="file harus berformat .csv")
-    raw = file.file.read()
-    if not raw:
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    file.file.seek(0)
+    if not size:
         raise HTTPException(status_code=400, detail="file kosong")
-    if len(raw) > s.MAX_UPLOAD_MB * 1024 * 1024:
+    if size > s.MAX_UPLOAD_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"file melebihi batas {s.MAX_UPLOAD_MB}MB")
     try:
-        return etl_service.run_etl(db, raw, file.filename, canonical)
+        return etl_service.run_etl(db, file.file, file.filename, canonical)
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e)) from e

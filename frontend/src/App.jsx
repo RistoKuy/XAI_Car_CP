@@ -17,12 +17,20 @@ function route() {
 export function App() {
   const { isMobile } = useWindowSize(768);
   const [page, setPage] = useState(route());
+  const [theme, setTheme] = useState(() => localStorage.getItem("auto-value-theme") || "light");
 
   useEffect(() => {
     const onHash = () => setPage(route());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("auto-value-theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((current) => current === "light" ? "dark" : "light");
 
   return (
     <>
@@ -32,7 +40,9 @@ export function App() {
       >
         Lewati ke konten
       </a>
-      {isMobile ? <MobileView page={page} /> : <DesktopView page={page} />}
+      {isMobile
+        ? <MobileView page={page} theme={theme} onToggleTheme={toggleTheme} />
+        : <DesktopView page={page} theme={theme} onToggleTheme={toggleTheme} />}
     </>
   );
 }

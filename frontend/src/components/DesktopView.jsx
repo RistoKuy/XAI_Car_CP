@@ -5,12 +5,21 @@ import { BrandMark, NAV_ITEMS } from "./navItems.jsx";
 // Bilah aksen kiri hanya menandai item aktif (sinyal status, bukan hiasan).
 // Halaman kolom sempit (beranda, estimasi) digeser setengah lebar sidebar
 // agar center terhadap layar, bukan terhadap sisa area konten.
-export function DesktopView({ page }) {
+function ThemeToggle({ theme, onToggleTheme }) {
+  return (
+    <button type="button" className="theme-toggle" onClick={onToggleTheme} aria-label={`Gunakan mode ${theme === "light" ? "gelap" : "terang"}`}>
+      <span aria-hidden="true">{theme === "light" ? "D" : "L"}</span>
+      <span>{theme === "light" ? "Mode gelap" : "Mode terang"}</span>
+    </button>
+  );
+}
+
+export function DesktopView({ page, theme, onToggleTheme }) {
   const narrow = page !== "data";
   const screenCenter = narrow ? "xl:-translate-x-[7.5rem]" : "";
   return (
-    <div className="flex min-h-screen bg-paper">
-      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r-2 border-ink bg-white px-5 py-6" aria-label="Sidebar">
+    <div className="app-shell flex min-h-screen bg-paper">
+      <aside className="app-sidebar sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r-2 border-ink bg-white px-5 py-6" aria-label="Sidebar">
         <a href="#/" className="no-underline" aria-label="Estimasi Mobil Bekas, ke beranda">
           <BrandMark />
         </a>
@@ -32,12 +41,20 @@ export function DesktopView({ page }) {
             );
           })}
         </nav>
+        <div className="mt-8 border-t border-line pt-4">
+          <p className="eyebrow mb-3">Tampilan</p>
+          <ThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
+        </div>
         <p className="mt-auto text-xs leading-relaxed text-muted">
           Estimasi model XGBoost + SHAP untuk demonstrasi penelitian.
         </p>
       </aside>
       <div className="min-w-0 flex-1">
-        <main id="konten" className="px-6 py-8 lg:px-10">
+        <header className="app-topbar flex items-center justify-between px-6 py-5 lg:px-10">
+          <div><span className="eyebrow">AutoValue / User portal</span><p className="m-0 text-sm text-muted">Estimasi harga mobil bekas berbasis data</p></div>
+          <span className="status-dot"><i aria-hidden="true" /> Model aktif</span>
+        </header>
+        <main id="konten" className="px-6 pb-8 lg:px-10">
           <div className={`mx-auto w-full max-w-6xl ${screenCenter}`}>
             <PageContent page={page} />
           </div>

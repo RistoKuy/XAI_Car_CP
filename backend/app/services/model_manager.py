@@ -29,14 +29,14 @@ class ModelManager:
 
     def predict_row(self, row: dict) -> tuple[float, float, list[dict]]:
         Xt = self.transform(row)
-        dm = xgb.DMatrix(Xt, feature_names=self.out_names)
+        dm = xgb.DMatrix(Xt, feature_names=self.out_names, enable_categorical=True)
         price = float(self.booster.predict(dm)[0])
         contrib = self.booster.predict(dm, pred_contribs=True)[0]
         base, vals = float(contrib[-1]), contrib[:-1]
         grouped: dict[str, float] = {}
         by_len = sorted(FEATURES, key=len, reverse=True)
         for name, v in zip(self.out_names, vals):
-            feat = name.partition("__")[2]
+            feat = name.partition("__")[2] or name
             orig = feat if feat in FEATURES else next(c for c in by_len if feat.startswith(c + "_"))
             grouped[orig] = grouped.get(orig, 0.0) + float(v)
         features = [{"feature": f, "value": row[f], "shap_value": grouped.get(f, 0.0)} for f in FEATURES]

@@ -1,24 +1,29 @@
+import asyncio
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.repositories import prediction_repository
 from app.schemas.prediction import PredictionDetailResponse, PredictionRequest, PredictionResponse
 from app.services import prediction_service
 
 router = APIRouter()
-_pool = ThreadPoolExecutor(max_workers=4)
 
 
 @router.post("/predictions", response_model=PredictionResponse)
-def create_prediction(payload: PredictionRequest, db: Session = Depends(get_db)):
+async def create_prediction(payload: PredictionRequest):
     timeout = get_settings().INFERENCE_TIMEOUT_S
+
+    def work():
+        with SessionLocal() as db:
+            return prediction_service.predict(payload, db)
+
     try:
-        return _pool.submit(prediction_service.predict, payload, db).result(timeout=timeout)
+        return await asyncio.wait_for(run_in_threadpool(work), timeout=timeout)
     except TimeoutError:
         raise HTTPException(status_code=504, detail="inference timeout")
 

@@ -245,7 +245,9 @@ ETL backend):
 - `Unnamed: 0` = index, bukan fitur.
 - `KM_1` dan `KM_2` berkorelasi 0,999 (redundan), dipakai satu: `km_1`.
 - Kolom teks mentah tidak dipakai di baseline (scope + cegah leakage).
-- `brand_type` high-cardinality di-encode **di dalam pipeline** (tanpa target leakage).
+- `brand_type` high-cardinality dipertahankan sebagai dtype kategori dan diproses oleh
+  native categorical XGBoost (`enable_categorical=true`), tanpa One-Hot Encoding,
+  Ordinal Encoding, atau target leakage.
 
 Dataset baru masuk **hanya** lewat upload Developer Portal + ETL (validasi skema,
 quality check, filter `Bekas`/`Used`), dengan dua mode: **Update** (append, data
@@ -256,17 +258,20 @@ Batas upload via env `MAX_UPLOAD_MB` (default 50).
 
 ```text
 Raw CSV -> Filter Used/Bekas -> Quality Check -> Split 80/20 (seed 42)
-  -> ColumnTransformer (fit hanya di train) -> XGBoost -> Evaluasi -> Artifact
+  -> CategoricalPreprocessor -> XGBoost (enable_categorical=true)
+  -> Evaluasi -> Artifact
 ```
 
-Fitur: `year`, `km_1` (numerik passthrough), `brand`/`machine_type`/`location`
-(OneHot, unknown diabaikan), `brand_type` (Ordinal, unknown = -1).
+Fitur: `year` dan `km_1` numerik; `brand`, `machine_type`, `location`, dan
+`brand_type` dipertahankan sebagai `pandas.Categorical`. Kategori baru saat
+inference dipetakan menjadi missing category dan tetap dapat diprediksi oleh
+XGBoost native categorical.
 
 Model aktif `xgb-v1` (`artifacts/models/xgboost/xgb-v1/`), metrik test:
 
 | MAE | RMSE | MAPE | R2 |
 |---|---|---|---|
-| 45.826.008 | 76.505.309 | 16,42% | 0,8688 |
+| 25.446.042 | 52.997.228 | 8,40% | 0,9371 |
 
 Konvensi artifact per versi (`model.json`, `preprocessing.joblib`,
 `feature_schema.json`, `metrics.json`, `training_config.json`, `shap_config.json`):
@@ -278,18 +283,18 @@ python ml/scripts/profile_dataset.py   # profiling + filter -> data/processed/
 python ml/scripts/train_baseline.py    # latih + evaluasi + simpan artifact
 ```
 
-Penjelasan lokal memakai TreeSHAP eksak native XGBoost
+Penjelasan lokal memakai kontribusi pohon native XGBoost
 (`Booster.predict(pred_contribs=True)`), diagregasi kembali ke 6 fitur asli.
 Terverifikasi aditivitasnya: `base_value + sum(shap) = prediksi` (residu Rp88
 akibat pembulatan float32). Tidak butuh lib `shap` saat inference.
 
 ## 5. Backend (FastAPI)
 
-Base URL `/api/v1`. Model dan explainer dimuat **sekali** saat startup (lifespan),
-tidak reload per request. Inference dibatasi timeout (`INFERENCE_TIMEOUT_S`,
+Base URL `/api/v1`. Model dan preprocessing dimuat **sekali** saat startup
+(lifespan), tidak reload per request. Inference dibatasi timeout (`INFERENCE_TIMEOUT_S`,
 respons 504 bila lewat). Startup otomatis membuat tabel dan seed metadata
 dataset + versi model + metrik. Kode:
-`backend/app/{api,core,db,repositories,schemas,services}`.
+`backend/app/{api,core,db,ml,repositories,schemas,services}`.
 
 | Method | Endpoint | Keterangan |
 |---|---|---|
@@ -461,7 +466,8 @@ Troubleshooting:
 - Developer Portal tidak bisa diakses dari jaringan lain: memang disengaja
   (bind `127.0.0.1`); gunakan SSH tunnel ke server.
 - Build backend lama (>10 menit): wajar, instalasi `xgboost` + `shap` (+ lib sains)
-  di image `python:3.11-slim`.
+  di image `python:3.11-slim`. Package `shap` hanya dibutuhkan workflow
+  training/profiling; inference memakai kontribusi native XGBoost.
 
 Pengembangan lokal tanpa Docker: backend `pip install -r backend/requirements.txt`
 lalu `uvicorn app.main:app` dari `backend/` (set `DATABASE_URL` sqlite/Postgres
@@ -471,7 +477,7 @@ dan `MODEL_DIR` absolut); frontend `npm install && npm run dev` dari `frontend/`
 ## 11. Testing
 
 - Phase 1: `profile_dataset.py` (filter 21.553 baris, korelasi 0,999) dan
-  `train_baseline.py` (metrik di atas, artifact 6 file).
+  `train_baseline.py` (native categorical XGBoost, metrik di atas, artifact 6 file).
 - Phase 2: `cd backend && python -m pytest tests -q` (17 passed: health,
   prediksi valid, roundtrip GET, 422 numerik invalid, 422 tipe salah + 200
   kategori asing, models/active + metrik, upload update/replace, validasi skema,
@@ -533,7 +539,7 @@ Phase 6 containerization. Tanpa auto-retraining (offline/manual saja).
 ## 14. Keterbatasan dan lanjutan TA
 
 Keterbatasan CP: baseline satu model, lib `shap` tidak bisa build di Python 3.13
-lokal (diverifikasi di image 3.11; inference memakai TreeSHAP native), training
+lokal (diverifikasi di image 3.11; inference memakai kontribusi native XGBoost), training
 offline/manual tanpa endpoint, tanpa auth/drift-monitoring. Isolasi Developer
 Portal mengandalkan bind loopback + split entry (tanpa login); auth penuh
 ditunda ke TA.

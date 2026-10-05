@@ -55,7 +55,7 @@ def _parse_row(r: dict, s) -> dict | None:
             "location": r["location"].strip(), "year": year, "km_1": km_1, "km_2": km_2, "price": price}
 
 
-def run_etl(db: Session, raw: bytes, filename: str, mode: str) -> dict:
+def run_etl(db: Session, raw, filename: str, mode: str) -> dict:
     s = get_settings()
     mode = normalize_mode(mode)
     ds = _get_or_create_dataset(db)
@@ -63,49 +63,47 @@ def run_etl(db: Session, raw: bytes, filename: str, mode: str) -> dict:
     db.add(job)
     db.flush()
     try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError as e:
-        raise ValueError(f"file bukan CSV UTF-8 valid: {e}") from e
-    try:
-        reader = csv.DictReader(io.StringIO(text))
+        reader = csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline=""))
         if not reader.fieldnames or not REQUIRED.issubset(set(reader.fieldnames or [])):
             missing = sorted(REQUIRED - set(reader.fieldnames or []))
             raise ValueError(f"kolom wajib hilang: {', '.join(missing)}")
-        rows = list(reader)
     except ValueError:
         raise
-    except Exception as e:
+    except (UnicodeDecodeError, csv.Error) as e:
         raise ValueError(f"gagal membaca CSV: {e}") from e
-    if not rows:
-        raise ValueError("CSV kosong, tidak ada baris data")
-    valid, rejected = [], 0
-    for r in rows:
-        parsed = _parse_row(r, s)
-        if parsed is None:
-            rejected += 1
-        else:
-            valid.append(parsed)
-    if not valid:
-        raise ValueError(f"tidak ada baris valid (total {len(rows)}, ditolak {rejected})")
     if mode == "replace":
         db.query(Listing).filter(Listing.dataset_id == ds.id).delete()
+    total_rows = valid_rows = rejected = 0
     batch = []
-    for v in valid:
-        batch.append(Listing(dataset_id=ds.id, **v))
-        if len(batch) >= CHUNK:
-            db.bulk_save_objects(batch)
-            batch = []
+    try:
+        for r in reader:
+            total_rows += 1
+            parsed = _parse_row(r, s)
+            if parsed is None:
+                rejected += 1
+                continue
+            valid_rows += 1
+            batch.append(Listing(dataset_id=ds.id, **parsed))
+            if len(batch) >= CHUNK:
+                db.bulk_save_objects(batch)
+                batch = []
+    except (UnicodeDecodeError, csv.Error) as e:
+        raise ValueError(f"gagal membaca CSV: {e}") from e
+    if not total_rows:
+        raise ValueError("CSV kosong, tidak ada baris data")
+    if not valid_rows:
+        raise ValueError(f"tidak ada baris valid (total {total_rows}, ditolak {rejected})")
     if batch:
         db.bulk_save_objects(batch)
     total_listings = db.query(Listing).filter(Listing.dataset_id == ds.id).count()
     ds.status, ds.row_count = "READY", total_listings
-    ds.valid_rows = (ds.valid_rows or 0) + len(valid) if mode == "append" else len(valid)
+    ds.valid_rows = (ds.valid_rows or 0) + valid_rows if mode == "append" else valid_rows
     ds.rejected_rows = (ds.rejected_rows or 0) + rejected if mode == "append" else rejected
-    job.status, job.total_rows, job.valid_rows, job.rejected_rows = "SUCCEEDED", len(rows), len(valid), rejected
+    job.status, job.total_rows, job.valid_rows, job.rejected_rows = "SUCCEEDED", total_rows, valid_rows, rejected
     db.commit()
-    logger.info("etl %s %s mode=%s valid=%d rejected=%d", job.id, filename, mode, len(valid), rejected)
+    logger.info("etl %s %s mode=%s valid=%d rejected=%d", job.id, filename, mode, valid_rows, rejected)
     return {"etl_job_id": str(job.id), "dataset_id": str(ds.id), "dataset_version": ds.version,
-            "mode": mode, "filename": filename, "total_rows": len(rows),
-            "valid_rows": len(valid), "rejected_rows": rejected,
-            "inserted_rows": len(valid), "replaced": mode == "replace",
+            "mode": mode, "filename": filename, "total_rows": total_rows,
+            "valid_rows": valid_rows, "rejected_rows": rejected,
+            "inserted_rows": valid_rows, "replaced": mode == "replace",
             "dataset_total": total_listings, "status": job.status}

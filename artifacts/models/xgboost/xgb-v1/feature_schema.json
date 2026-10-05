@@ -7,6 +7,13 @@
     "location",
     "brand_type"
   ],
+  "categorical_features": [
+    "brand",
+    "machine_type",
+    "location",
+    "brand_type"
+  ],
   "target": "price",
-  "km_choice": "km_1 (KM_2 dropped, corr~0.999)"
+  "km_choice": "km_1 (KM_2 dropped, corr~0.999)",
+  "encoding": "native_xgboost_categorical"
 }
