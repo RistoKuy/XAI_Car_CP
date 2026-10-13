@@ -87,6 +87,8 @@ auto-deploy model setelah training, code editor/eksekusi arbitrary code dari por
 
 ## 2. Arsitektur
 
+### 2.1 Ringkasan Topologi Sistem
+
 ```mermaid
 flowchart TB
     subgraph Client[Client]
@@ -143,6 +145,105 @@ flowchart TB
     SH --> FS
 ```
 
+### 2.2 Dekomposisi Arsitektur Codebase (Layered Architecture)
+
+Codebase dirancang dengan arsitektur berlapis (*layered architecture*) yang memisahkan *presentation*, *gateway/routing*, *domain service*, *machine learning engine*, dan *data access*. Seluruh komponen mengikuti prinsip *Single Responsibility* dan minim ketergantungan silang:
+
+```text
++-----------------------------------------------------------------------------------+
+| 1. PRESENTATION LAYER (frontend/)                                                 |
+|    - Dual SPA Bundle: User Portal (index.html) & Developer Portal (developer.html) |
+|    - Adaptive Shells: DesktopView, MobileView (useWindowSize <= 768px), DevShell   |
+|    - UI Components: VehicleForm, PredictionCard, ShapWaterfall, DataDashboard      |
+|    - State & Client Services: usePrediction hook, api.js, formatCurrency.js       |
++-----------------------------------------------------------------------------------+
+                                         |  HTTP / REST
+                                         v
++-----------------------------------------------------------------------------------+
+| 2. INGRESS & REVERSE PROXY LAYER (infra/nginx/)                                   |
+|    - Port 80 (Publik): Serves User SPA + Proxy /api/ -> FastAPI (Blokir dev 404)  |
+|    - Port 8081 (127.0.0.1 Loopback): Serves Dev SPA + Swagger /docs + Proxy /api/ |
++-----------------------------------------------------------------------------------+
+                                         |  Reverse Proxy :8000
+                                         v
++-----------------------------------------------------------------------------------+
+| 3. API & WEB GATEWAY LAYER (backend/app/api/, backend/app/schemas/)              |
+|    - App Lifespan: ModelManager warming + DB table init + auto-seed metadata      |
+|    - Route Handlers: routes_health, routes_prediction, routes_model,              |
+|                      routes_dataset, routes_etl, routes_developer, routes_stats   |
+|    - Contract Validation: Pydantic schemas (PredictionRequest/Response, Stats)    |
++-----------------------------------------------------------------------------------+
+                                         |  Invocations
+                                         v
++-----------------------------------------------------------------------------------+
+| 4. DOMAIN & SERVICE LAYER (backend/app/services/)                                 |
+|    - ModelManager: Singleton in-memory loader untuk XGBoost artifact & preprocessor|
+|    - PredictionService: Pipeline orkestrator (Input -> Preprocess -> Predict -> XAI)|
+|    - ETLService: Streaming chunk parser CSV, data validator, batch DB ingestion   |
+|    - StatsService: Agregasi analitik data listing mobil bekas untuk dashboard     |
++-----------------------------------------------------------------------------------+
+                         |                                   |
+                         v                                   v
++--------------------------------------+  +-----------------------------------------+
+| 5. ML & EXPLAINABILITY (backend/ml/) |  | 6. REPOSITORY & PERSISTENCE (backend/db/|
+|    - CategoricalPreprocessor         |  |    backend/app/repositories/)           |
+|      (pandas.Categorical native)     |  |    - ListingRepository: bulk query/stats|
+|    - Native XGBoost Booster Runtime  |  |    - ModelRepository: versions & metrics|
+|    - In-Engine Tree SHAP Explainer   |  |    - PredictionRepository: JSONB audit  |
+|      (pred_contribs=True, no SHAP lib|  |    - SQLAlchemy ORM 2.0 Engine          |
+|       required at inference runtime) |  |    - PostgreSQL 16 (6 relational tables)|
++--------------------------------------+  +-----------------------------------------+
+```
+
+#### 1. Lapisan Frontend (`frontend/`)
+- **Dual-SPA Multi-Page Architecture**: Dikonfigurasi melalui `vite.config.js` dengan dua entry point terisolasi: `index.html` (`src/main.jsx`) untuk User Portal dan `developer.html` (`src/developer/main.jsx`) untuk Developer Portal. Kode modul developer di-*chunk* terpisah (`developer-*.js`) sehingga tidak pernah bocor ke dalam bundle publik.
+- **Adaptive Shell Switcher**: Hook `useWindowSize` mendeteksi *viewport width* secara reaktif (breakpoint 768px). Pada layar lebar (desktop), antarmuka menggunakan `DesktopView` dengan sidebar tetap. Pada layar kecil (mobile), antarmuka beralih ke `MobileView` dengan hamburger navigation dan *bottom navigation bar*.
+- **Reusable Presentation Components**: Komponen visual utama (`VehicleForm`, `PredictionCard`, `ShapWaterfall`, `ShapBarChart`, `LoadingState`) digunakan secara konsisten baik pada User Portal maupun pada Developer Playground (`DevPlayground.jsx`).
+- **Data Dashboard Visualizations**: `DataDashboard.jsx` menyajikan distribusi metrik mobil bekas (ringkasan, histogram harga, proporsi transmisi, perbandingan merek dan wilayah, serta histogram tahun) menggunakan visualisasi SVG native tanpa ketergantungan library grafik eksternal.
+- **Client Service & State Management**: Modul `services/api.js` membungkus fetch API dengan penanganan timeout, `hooks/usePrediction.js` mengelola state siklus inferensi (idle, loading, success, error), dan `utils/formatCurrency.js` memformat representasi mata uang Rupiah.
+
+#### 2. Lapisan Ingress & Reverse Proxy (`infra/nginx/`)
+- **Port 80 (Public Gateway)**: Menyajikan static files User Portal (`index.html`), mem-proxy request rute `/api/` ke container backend (`fastapi:8000`), dan secara eksplisit memblokir request ke `developer.html` atau `/assets/developer*` dengan status HTTP 404.
+- **Port 8081 (Loopback Developer Gateway)**: Dibatasi secara ketat hanya pada interface loopback `127.0.0.1`. Menyajikan Developer Portal (`developer.html`), dokumentasi Swagger UI (`/docs`, `/openapi.json`), dan mem-proxy `/api/`. Request ke `index.html` publik diblokir dengan status HTTP 404.
+
+#### 3. Lapisan API & Web Gateway (`backend/app/api/`, `backend/app/schemas/`)
+- **Lifespan Lifecycle Controller (`backend/app/main.py`)**: Mengelola inisialisasi aplikasi secara tersentralisasi saat proses startup: memastikan tabel PostgreSQL terbuat via SQLAlchemy, memuat model ML aktif ke memory lewat `ModelManager`, dan mengeksekusi auto-seed metadata dataset/model/listing (bila diaktifkan via `SEED_ON_STARTUP`).
+- **Modular Route Handlers**:
+  - `routes_health.py`: Healthcheck endpoint (`GET /health`) yang memverifikasi kesiapan model aktif.
+  - `routes_prediction.py`: Endpoint inferensi tunggal (`POST /predictions`) dan pembacaan detail riwayat prediksi (`GET /predictions/{id}`).
+  - `routes_model.py`: Endpoint informasi model aktif (`GET /models/active`) dan katalog seluruh versi model (`GET /models`).
+  - `routes_dataset.py`: Multipart upload streaming dataset CSV (`POST /datasets/upload`) serta metadata dataset (`GET /datasets`, `GET /datasets/{id}`).
+  - `routes_etl.py`: Riwayat audit eksekusi ETL (`GET /etl/jobs`).
+  - `routes_developer.py`: Agregasi ringkasan diagnostik backend, database, model, dan status ETL (`GET /developer/overview`).
+  - `routes_stats.py`: Endpoint metrik statistik agregat listing mobil bekas (`GET /stats/dataset`).
+- **Schema Contracts (`backend/app/schemas/`)**: Pydantic models mendefinisikan validasi batas ketat (`1930 <= year <= 2026`, `km >= 0`, `price >= 0`) dan serialisasi JSON terstruktur.
+
+#### 4. Lapisan Domain & Service (`backend/app/services/`)
+- **`ModelManager` (`model_manager.py`)**: Singleton in-memory cache untuk artefak model XGBoost. Membaca file `model.json`, `preprocessing.joblib`, dan skema fitur sekali saat startup. Tidak melakukan disk I/O ulang saat melayani request inferensi.
+- **`PredictionService` (`prediction_service.py`)**: Mengorkestrasi alur inferensi: memvalidasi fallback kilometer (`km_1` atau `km_2`), mentransformasi input ke format DataFrame berkategori native, memanggil XGBoost Booster untuk memprediksi harga, mengekstrak penjelasan pohon native, memetakan kembali kontribusi ke 6 fitur semantik, dan menyimpan log prediksi ke database secara best-effort tanpa menghambat respons pengguna.
+- **`ETLService` (`etl_service.py`)**: Mengimplementasikan pemrosesan streaming batch untuk file CSV multipart tanpa memuat seluruh file ke RAM. Melakukan validasi header wajib, sanitasi batas numerik/kategorikal, pemfilteran listing `Bekas`/`Used`, serta mendukung mode ingestion `update` (append) dan `replace` (pengosongan data lama dataset lalu pengisian baru).
+- **`StatsService` (`stats_service.py`)**: Menghitung analitik teragregasi langsung dari tabel listing database (total unit, mean/median/min/max harga, distribusi transmisi, ranking merek, dan sebaran tahunan).
+
+#### 5. Lapisan Machine Learning & XAI (`backend/app/ml/`, `artifacts/models/`)
+- **`CategoricalPreprocessor` (`categorical_preprocessor.py`)**: Mempertahankan tipe data kategori asli pandas (`pandas.Categorical`) untuk fitur berkardinalitas tinggi seperti `brand_type` (> 2.000 kategori). Menghindari ledakan dimensi One-Hot Encoding dan distorsi ordinal encoding. Menangani kategori baru saat inferensi dengan memetakannya ke *missing category* yang didukung langsung oleh algoritma pohon XGBoost.
+- **Native In-Engine Tree SHAP**: Penjelasan fitur dihitung langsung di backend menggunakan fitur native pohon XGBoost `Booster.predict(..., pred_contribs=True)`. Menghasilkan *base value* dan nilai kontribusi per fitur secara aditif ($\text{Base Value} + \sum \phi_i = \text{Prediksi}$). Kecepatan komputasi berada pada orde milidetik dan tidak membutuhkan library `shap` pada saat runtime inferensi.
+- **Versioned Artifact Bundle**: Disimpan per versi pada direktori `artifacts/models/xgboost/<version>/` yang mencakup 6 file lengkap: `model.json` (bobot model), `preprocessing.joblib` (state preprocessor), `feature_schema.json` (definisi fitur dan tipe data), `metrics.json` (skor MAE/RMSE/MAPE/R2 per split), `training_config.json` (parameter training dan random seed), serta `shap_config.json` (konfigurasi atribut explainability).
+
+#### 6. Lapisan Repository & Persistensi Data (`backend/app/repositories/`, `backend/app/db/`)
+- **Repository Pattern**: Mengisolasi logika query basis data dari lapisan route dan service:
+  - `ListingRepository`: Pengambilan data listing teragregasi, query berfilter, dan operasi *bulk insert* batch.
+  - `ModelRepository`: Pengambilan metadata versi model aktif dan metrik evaluasi per split.
+  - `PredictionRepository`: Penyimpanan log inferensi dan riwayat prediksi dengan field `input_payload` dan `shap_payload` berbasis JSONB untuk kemudahan audit trail.
+- **Database Engine & ORM**: Berbasis SQLAlchemy 2.0 dengan driver `psycopg` (PostgreSQL 16) menggunakan connection pooling dan session lifecycle `get_db()`.
+- **Relational ERD Tables**: Terdiri dari 6 tabel: `datasets`, `etl_jobs`, `listings`, `model_versions`, `model_metrics`, dan `predictions`.
+
+#### 7. Pipeline ML Offline & Reproducibility (`ml/scripts/`)
+- **`profile_dataset.py`**: Skrip CLI untuk memprofiling dataset mentah `dataset.csv`, menganalisis korelasi redundansi `KM_1` dan `KM_2`, memfilter baris listing `Bekas` dan `Used` (21.553 baris), dan mengekspor dataset bersih ke `data/processed/`.
+- **`train_baseline.py`**: Skrip pelatihan reproducible mandiri dengan random seed 42, pembagian 80/20 train/test, pelatihan XGBoost native categorical, evaluasi metrik performa, dan pembuatan paket artefak terversi.
+- **`seed_db.py`**: Skrip populasi database independen untuk menginisialisasi metadata model, metrik evaluasi, dan listing data awal ke PostgreSQL.
+
+### 2.3 Alur Eksekusi (Execution Flows)
+
 Alur prediksi + penjelasan:
 
 ```mermaid
@@ -194,6 +295,8 @@ sequenceDiagram
     ETL-->>API: total/valid/ditolak/total di DB
     API-->>PORTAL: Hasil ETL
 ```
+
+### 2.4 Topologi Deployment & Isolasi Jaringan
 
 Deploy (sesuai `docker-compose.yml`):
 

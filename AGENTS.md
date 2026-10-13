@@ -11,6 +11,7 @@
 - **No Emojis in Frontend Rule**: Never use emoji characters in UI components, buttons, badges, or headers. Use clean inline SVG icons, typography badges, or simple text labels instead.
 - **Strict User Permission for Git Commit Rule**: NEVER execute `git commit` or commit code changes without explicit user request or prior user approval.
 - **Comprehensive Commit Description Rule**: Every git commit message MUST include a clear, descriptive subject line followed by a comprehensive, detailed multi-line commit body explaining all specific code updates, files modified, and underlying architectural rationale.
+- **Continuous Documentation Synchronization Rule**: ALWAYS update and synchronize all project documentation (specifically [README.md](README.md) and [AGENTS.md](AGENTS.md)) whenever code, architecture, schemas, endpoints, or configurations change. Never leave documentation stale or lagging behind implementation.
 
 ---
 
@@ -31,6 +32,17 @@ Deliverable end-to-end (§1): dataset + metadata model di PostgreSQL, preprocess
 > 1. Run `git log -n 10 --oneline` (or view commit history) to inspect recent changes.
 > 2. Read this `AGENTS.md` to understand the technical blueprint (architecture, API spec, ERD, milestones).
 > 3. Inspect [dataset.csv](dataset.csv) before introducing new features, preprocessing rules, or data structures.
+
+---
+
+## Mandatory Documentation Update Rule for AI Agents
+> [!IMPORTANT]
+> **ALWAYS KEEP ALL DOCUMENTATION SYNCHRONIZED & UP-TO-DATE WITH CODE CHANGES**
+>
+> Setiap kali ada penambahan fitur, refaktor arsitektur, modifikasi API/skema/database, perubahan konfigurasi, atau alur kerja apa pun:
+> 1. AI Agent **WAJIB** segera memperbarui seluruh dokumentasi terkait, terutama [README.md](README.md) dan [AGENTS.md](AGENTS.md), pada siklus/turn yang sama.
+> 2. Pastikan penjelasan arsitektur, daftar endpoint, diagram alur, konfigurasi environment, dan spesifikasi teknis selalu akurat dan mencerminkan kode aktual.
+> 3. Dokumentasi tidak boleh dibiarkan usang (*stale*), tertinggal, atau tidak sinkron dengan codebase.
 
 ---
 
@@ -161,17 +173,89 @@ Kategori yang tidak dikenal saat inference dipetakan ke missing category.
 ## Architecture
 
 ```text
-User Portal :80 / Developer Portal :8081 loopback
-				-> Nginx -> FastAPI :8000
-				-> Pydantic -> service/repository
-				-> categorical preprocessing -> XGBoost
-				-> native tree contributions -> PostgreSQL prediction log
+User Portal :80 (index.html)        Developer Portal :8081 (developer.html, loopback-only)
+        |                                       |
+        +-------------------+-------------------+
+                            | (HTTP /api/*)
+                            v
+                      Nginx Reverse Proxy
+        +-------------------+-------------------+
+        | Port 80 (Publik)  | Port 8081 (127.0.0.1)
+        | Blokir dev.html   | Blokir index.html + Swagger UI /docs
+        +-------------------+-------------------+
+                            | :8000
+                            v
+                   FastAPI Lifespan Manager
+        (ModelManager warmup + DB table sync + seed auto-check)
+                            |
+           +----------------+----------------+
+           | Pydantic Schema Validation      |
+           +----------------+----------------+
+                            |
+           +----------------+----------------+
+           | Domain & Application Services   |
+           | - ModelManager (Singleton cache)|
+           | - PredictionService             |
+           | - ETLService (Streaming batch)  |
+           | - StatsService (Aggregations)   |
+           +----------------+----------------+
+                   |                 |
+                   v                 v
++-------------------------+   +------------------------------------+
+| ML & Inference Engine   |   | Data Persistence & Repositories    |
+| - CategoricalPreprocessor|  | - ListingRepository                |
+| - XGBoost Booster       |   | - ModelRepository                  |
+| - Tree SHAP Contribs    |   | - PredictionRepository (JSONB logs)|
+|   (pred_contribs=True)  |   | - SQLAlchemy ORM 2.0               |
++-------------------------+   | - PostgreSQL 16 Private Container  |
+                              +------------------------------------+
 ```
 
-Frontend tidak pernah menjalankan model atau mengakses database langsung.
-Developer Portal adalah control/testing console, bukan code editor. Model JSON,
-preprocessing joblib, schema fitur, metrik, konfigurasi training, dan konfigurasi
-explanation disimpan per versi di `artifacts/models/xgboost/<version>/`.
+### Modular Codebase Layers & Component Boundaries
+
+1. **Frontend Presentation Layer (`frontend/src/`)**:
+   - **Dual-SPA Multi-Page Build**: Dikonfigurasi pada `vite.config.js` dengan dua entry point terisolasi: `index.html` (`src/main.jsx`) untuk User Portal dan `developer.html` (`src/developer/main.jsx`) untuk Developer Portal. Bundle developer di-*chunk* terpisah (`developer-*.js`) agar tidak bocor ke user publik.
+   - **Adaptive UI Shells**: Hook `useWindowSize` mengelola pergantian adaptif antara `DesktopView` (sidebar statis) dan `MobileView` (header hamburger + bottom bar) pada breakpoint 768px. Developer Portal menggunakan `DeveloperShell` dengan navigasi samping dan badge DEV.
+   - **Reusable Component Tree**: Komponen formulir dan visualisasi XAI (`VehicleForm`, `PredictionCard`, `ShapWaterfall`, `ShapBarChart`, `LoadingState`) digunakan bersama di User Portal dan Developer Playground.
+   - **Analytics & Visualizations**: `DataDashboard.jsx` menyajikan distribusi metrik database (ringkasan, histogram harga, transmisi, ranking merek/lokasi, histogram tahun) via SVG murni tanpa library grafik pihak ketiga.
+   - **Client Services & Hooks**: `services/api.js` (Axios/fetch wrapper dengan error/timeout handling), `hooks/usePrediction.js` (state machine inferensi), dan `utils/formatCurrency.js`.
+
+2. **Ingress & Security Layer (`infra/nginx/`)**:
+   - **Dual-Port Isolation**: Port 80 melayani User Portal dan mem-proxy `/api/` ke backend; memblokir `developer.html` dan aset developer dengan HTTP 404.
+   - **Loopback Developer Port**: Port 8081 di-bind ke `127.0.0.1` melayani Developer Portal, mem-proxy `/api/`, serta membuka Swagger UI (`/docs`, `/openapi.json`); memblokir `index.html`.
+
+3. **API & Web Gateway Layer (`backend/app/api/`, `backend/app/schemas/`)**:
+   - **Lifespan Initialization (`backend/app/main.py`)**: Startup memuat tabel via SQLAlchemy, memanaskan model aktif di `ModelManager`, dan mengeksekusi seed otomatis (metadata/listings) bila aktif.
+   - **Modular Route Handlers**:
+     - `routes_health.py`: Probe liveness/readiness (`GET /health`).
+     - `routes_prediction.py`: Eksekusi prediksi + XAI (`POST /predictions`) dan audit log (`GET /predictions/{id}`).
+     - `routes_model.py`: Metadata model aktif (`GET /models/active`) dan katalog versi model (`GET /models`).
+     - `routes_dataset.py`: Streaming CSV upload (`POST /datasets/upload`) dan metadata (`GET /datasets`, `GET /datasets/{id}`).
+     - `routes_etl.py`: Riwayat pekerjaan ETL (`GET /etl/jobs`).
+     - `routes_developer.py`: Agregasi diagnostik sistem untuk Developer Overview (`GET /developer/overview`).
+     - `routes_stats.py`: Statistik listing terfilter (`GET /stats/dataset`).
+   - **Schema Boundary**: Validasi request dan serialisasi response via Pydantic model (`prediction.py`, `model.py`, `stats.py`) dengan batas rentang nilai data yang ketat.
+
+4. **Domain & Service Layer (`backend/app/services/`)**:
+   - **`ModelManager` (`model_manager.py`)**: Singleton in-memory model cache yang memuat artefak XGBoost dan preprocessor sekali saat startup, menghilangkan overhead disk I/O per request.
+   - **`PredictionService` (`prediction_service.py`)**: Mengorkestrasi normalisasi input (fallback `km_1`/`km_2`), transformasi kategorikal, eksekusi Booster XGBoost, ekstraksi SHAP aditif native, agregasi kembali ke 6 fitur semantik, dan pencatatan audit log ke database secara best-effort.
+   - **`ETLService` (`etl_service.py`)**: Parser streaming CSV multipart berbasis chunk tanpa menimbun seluruh file di RAM; validasi skema, pembersihan nilai, filter listing `Bekas`/`Used`, serta eksekusi mode `update` (append) dan `replace` (truncate + insert).
+   - **`StatsService` (`stats_service.py`)**: Menghitung analitik teragregasi database listing untuk keperluan visualisasi dashboard.
+
+5. **Machine Learning & XAI Engine (`backend/app/ml/`, `artifacts/models/`)**:
+   - **`CategoricalPreprocessor` (`categorical_preprocessor.py`)**: Mempertahankan tipe `pandas.Categorical` asli untuk high-cardinality `brand_type` (> 2.000 kategori). Menghindari One-Hot Encoding berlebih dan distorsi ordinal encoding. Memetakan kategori asing saat inference ke *missing category* yang didukung langsung oleh XGBoost.
+   - **In-Engine Tree SHAP**: Dihitung langsung melalui `Booster.predict(..., pred_contribs=True)` dalam request flow backend. Memenuhi jaminan aditivitas ($\text{Base Value} + \sum \phi_i = \text{Prediksi}$) dalam orde milidetik tanpa membutuhkan paket runtime `shap`.
+   - **Artifact Contract**: Tersimpan per versi di `artifacts/models/xgboost/<version>/` (`model.json`, `preprocessing.joblib`, `feature_schema.json`, `metrics.json`, `training_config.json`, `shap_config.json`).
+
+6. **Persistence & Repository Layer (`backend/app/repositories/`, `backend/app/db/`)**:
+   - **Repository Pattern**: Memisahkan query database dari route/service (`ListingRepository`, `ModelRepository`, `PredictionRepository`).
+   - **SQLAlchemy ORM 2.0**: Mengelola koneksi pooling, transaksi, dan model relasional: `Dataset`, `ETLJob`, `Listing`, `ModelVersion`, `ModelMetric`, dan `Prediction` (dengan field `input_payload` dan `shap_payload` berbasis JSONB).
+   - **Database Network**: PostgreSQL 16 Alpine berjalan dalam internal Docker bridge network dan tidak diekspos ke host publik.
+
+7. **Offline ML Pipeline & Tooling (`ml/scripts/`)**:
+   - `profile_dataset.py`: Profiling dataset mentah `dataset.csv`, verifikasi korelasi `KM_1`/`KM_2`, ekstraksi subset `Bekas`/`Used` (21.553 baris).
+   - `train_baseline.py`: Pipeline pelatihan mandiri (seed 42, 80/20 train/test, evaluasi MAE/RMSE/MAPE/R², export 6 file artefak terversi).
+   - `seed_db.py`: Skrip mandiri untuk mempopulasikan metadata dan database listing.
 
 ## ML and Artifact Contract
 
