@@ -8,24 +8,31 @@ explanation + dataset/ETL/model management, dua portal ReactJS terisolasi
 (User Portal publik + Developer Portal loopback-only), seluruh stack
 containerized dengan Docker.
 
+## Metodologi (SDLC Waterfall)
+
+Dokumentasi ini disusun mengikuti 7 fase Waterfall. Urutan fase = urutan baca.
+
+| Fase | Cakupan dokumentasi |
+|---|---|
+| [Fase 1: Analisis Kebutuhan](#fase-1-analisis-kebutuhan) | Prinsip estimasi + SHAP, dua aktor, use-case UC1-UC12, batas scope |
+| [Fase 2: Perancangan Sistem](#fase-2-perancangan-sistem) | Arsitektur layered, kontrak API `/api/v1`, ERD 6 tabel, topologi Nginx dua port |
+| [Fase 3: Persiapan Data dan Machine Learning](#fase-3-persiapan-data-dan-machine-learning) | Dataset 22.679 baris, filter Bekas/Used, pipeline native categorical, artifact `xgb-v1` |
+| [Fase 4: Implementasi Sistem](#fase-4-implementasi-sistem) | Backend FastAPI, dua portal ReactJS, PostgreSQL + seed, struktur repo |
+| [Fase 5: Integrasi dan Pengujian](#fase-5-integrasi-dan-pengujian) | 5 suite `testing/`, metode eksekusi, matriks XAI, kriteria penerimaan |
+| [Fase 6: Deployment](#fase-6-deployment) | Konfigurasi env passwordless, Docker Compose, troubleshooting |
+| [Fase 7: Pemeliharaan dan Evaluasi](#fase-7-pemeliharaan-dan-evaluasi) | Keterbatasan CP dan hasil evaluasi GO |
+
 ## Daftar isi
 
-1. [Konsep, ruang lingkup, dan aktor](#1-konsep-ruang-lingkup-dan-aktor)
-2. [Arsitektur](#2-arsitektur)
-3. [Dataset dan keputusan data](#3-dataset-dan-keputusan-data)
-4. [Pipeline ML dan artifact model](#4-pipeline-ml-dan-artifact-model)
-5. [Backend (FastAPI)](#5-backend-fastapi)
-6. [Developer Portal](#6-developer-portal)
-7. [User Portal (ReactJS)](#7-user-portal-reactjs)
-8. [Database (PostgreSQL + pgAdmin)](#8-database-postgresql--pgadmin)
-9. [Konfigurasi dan password](#9-konfigurasi-dan-password)
-10. [Deploy dan menjalankan](#10-deploy-dan-menjalankan)
-11. [Testing](#11-testing)
-12. [Struktur repo](#12-struktur-repo)
-13. [Kriteria penerimaan](#13-kriteria-penerimaan)
-14. [Keterbatasan dan lanjutan TA](#14-keterbatasan-dan-lanjutan-ta)
+- [Fase 1: Analisis Kebutuhan](#fase-1-analisis-kebutuhan)
+- [Fase 2: Perancangan Sistem](#fase-2-perancangan-sistem)
+- [Fase 3: Persiapan Data dan Machine Learning](#fase-3-persiapan-data-dan-machine-learning)
+- [Fase 4: Implementasi Sistem](#fase-4-implementasi-sistem)
+- [Fase 5: Integrasi dan Pengujian](#fase-5-integrasi-dan-pengujian)
+- [Fase 6: Deployment](#fase-6-deployment)
+- [Fase 7: Pemeliharaan dan Evaluasi](#fase-7-pemeliharaan-dan-evaluasi)
 
-## 1. Konsep, ruang lingkup, dan aktor
+## Fase 1: Analisis Kebutuhan
 
 Setiap prediksi harus bisa menjawab dua pertanyaan: **berapa estimasinya** dan
 **mengapa sebesar itu**. Prinsip yang dipegang:
@@ -85,7 +92,7 @@ Di luar scope CP: benchmarking multi-model (RF/LightGBM), LIME, auto-retraining
 MLOps, deteksi drift, rekomendasi MCDM, scraping real-time, auth kompleks,
 auto-deploy model setelah training, code editor/eksekusi arbitrary code dari portal.
 
-## 2. Arsitektur
+## Fase 2: Perancangan Sistem
 
 ### 2.1 Ringkasan Topologi Sistem
 
@@ -331,7 +338,9 @@ pgAdmin langsung di :5050 (tanpa login, mode passwordless)
 | postgres | `postgres:16-alpine` | -                                 | Database + metadata + log               |
 | pgadmin  | `dpage/pgadmin4:9`   | `:5050`                           | Administrasi database                   |
 
-## 3. Dataset dan keputusan data
+## Fase 3: Persiapan Data dan Machine Learning
+
+### Dataset dan keputusan data
 
 `dataset.csv`: 22.679 baris, 14 kolom, target `price`, tanpa missing value.
 
@@ -357,7 +366,7 @@ quality check, filter `Bekas`/`Used`), dengan dua mode: **Update** (append, data
 lama tetap ada) atau **Replace** (hapus semua data lama, isi data baru).
 Batas upload via env `MAX_UPLOAD_MB` (default 50).
 
-## 4. Pipeline ML dan artifact model
+### Pipeline ML dan artifact model
 
 ```text
 Raw CSV -> Filter Used/Bekas -> Quality Check -> Split 80/20 (seed 42)
@@ -391,7 +400,9 @@ Penjelasan lokal memakai kontribusi pohon native XGBoost
 Terverifikasi aditivitasnya: `base_value + sum(shap) = prediksi` (residu Rp88
 akibat pembulatan float32). Tidak butuh lib `shap` saat inference.
 
-## 5. Backend (FastAPI)
+## Fase 4: Implementasi Sistem
+
+### Backend (FastAPI)
 
 Base URL `/api/v1`. Model dan preprocessing dimuat **sekali** saat startup
 (lifespan), tidak reload per request. Inference dibatasi timeout (`INFERENCE_TIMEOUT_S`,
@@ -435,7 +446,7 @@ satu dari `km_1`/`km_2` terisi, kategori asing ditoleransi (tetap memprediksi).
 Training tidak diekspos sebagai endpoint (offline via `ml/scripts/`, tanpa
 auto-retraining dan tanpa auto-deploy).
 
-## 6. Developer Portal
+### Developer Portal
 
 Konsol teknis di `http://localhost:8081` (loopback-only), entry `developer.html`,
 shell gelap + badge DEV, 6 modul dengan navigasi sendiri:
@@ -454,7 +465,7 @@ terpisah (bundle user terbukti bersih dari kode developer), nginx memblokir
 silang (`developer.html` 404 di port 80, `index.html` 404 di port 8081), tanpa
 link dari User Portal ke Developer Portal, dan `noindex, nofollow`.
 
-## 7. User Portal (ReactJS)
+### User Portal (ReactJS)
 
 Halaman `Beranda` (penjelasan + metrik model live dari API), `Data` (dashboard
 statistik database listings: tata letak lebar di desktop dan ringkas di mobile,
@@ -474,7 +485,7 @@ informatif (sebab + aksi), responsif dan keyboard-only friendly (skip link,
 kontrol native, fokus terlihat). API base via `VITE_API_URL`, default
 same-origin `/api/v1`. Bundle user tidak memuat rute/navigasi developer.
 
-## 8. Database (PostgreSQL + pgAdmin)
+### Database (PostgreSQL + pgAdmin)
 
 Enam tabel sesuai ERD: `datasets` (metadata + status + counter valid/ditolak),
 `etl_jobs` (riwayat eksekusi ETL: mode, file, total/valid/ditolak, status),
@@ -497,7 +508,137 @@ python ml/scripts/seed_db.py
 pgAdmin tanpa login di `http://localhost:5050`, server `carprice (local)` sudah
 terdaftar otomatis.
 
-## 9. Konfigurasi dan password
+### Struktur repo
+
+```text
+frontend/                  # ReactJS, dua entry: index.html (user) + developer.html
+  src/
+    layouts/               # DesktopView/MobileView (user) + DeveloperShell
+    developer/             # devNav.js + main.jsx (entry developer)
+    components/            # prediction (dipakai ulang playground), nav, shell user
+    pages/                 # Home/Prediction/DataDashboard + developer/ (6 modul)
+    services/hooks/utils/  # api.js, usePrediction.js, formatCurrency.js
+  nginx.conf               # dua server: :80 user, :8081 developer (+ blokir silang)
+backend/                   # FastAPI (app/api, core, db, repositories, schemas, services)
+  app/api/                 # routes_health/prediction/model/dataset/etl/developer/stats
+  app/services/            # prediction_service, model_manager, stats_service, etl_service
+testing/                   # 5 skrip pengujian flat (run_all.py + 1..5, tanpa subdirektori)
+  run_all.py               # master orchestrator
+  1_data_validation.py     # Suite 1
+  2_unit_testing.py        # Suite 2
+  3_integration_testing.py # Suite 3
+  4_functional_testing.py  # Suite 4
+  5_model_xai_validation.py # Suite 5
+ml/scripts/                # profile_dataset, train_baseline, seed_db
+data/processed/            # hasil filter (regenerable, di-ignore git)
+artifacts/models/          # artifact versioned xgb-v1
+infra/nginx/               # reverse proxy dua port (80 publik + 8081 loopback)
+infra/pgadmin/             # servers.json praregistrasi
+docker-compose.yml
+.env.example
+```
+
+## Fase 5: Integrasi dan Pengujian
+
+Sumber kebenaran dokumentasi pengujian adalah bagian ini. Tidak ada `README.md`
+terpisah di dalam `testing/` — seluruh panduan suite terpusat di sini.
+
+```text
+testing/
+├── run_all.py                  # Master test orchestrator (menjalankan kelima suite)
+├── 1_data_validation.py        # Suite 1: Data Validation & ETL Rules
+├── 2_unit_testing.py           # Suite 2: Unit Testing, Static Analysis, & Utility
+├── 3_integration_testing.py   # Suite 3: Integration Testing & Security Boundary
+├── 4_functional_testing.py    # Suite 4: Functional Testing & Frontend Quality Gate
+└── 5_model_xai_validation.py  # Suite 5: Model Artifacts & Tree SHAP Validation
+```
+
+### Suite 1: Data Validation (`testing/1_data_validation.py`)
+- Memvalidasi dataset mentah `dataset.csv`: 22.679 baris, 14 kolom, 0 missing value, 21.553 listing Bekas/Used (1.126 listing Baru dibuang).
+- Memverifikasi korelasi `KM_1` dan `KM_2` (~0.999 redundansi).
+- Menguji aturan penolakan data ETL (`REQUIRED` headers, tahun di luar batas, KM negatif/ekstrem, harga negatif, kategori kosong/whitespace).
+
+### Suite 2: Unit Testing (`testing/2_unit_testing.py`)
+- Menjalankan 17 unit test backend Pytest dalam container (SQLite in-memory): healthcheck, validasi request Pydantic, transformasi kategorikal, endpoint predictions roundtrip, dataset detail, stats aggregations.
+- Menjalankan kompilasi statis `compileall` dan verifikasi `git diff --check`.
+- Menguji fungsionalitas pemformatan mata uang Rupiah pada `frontend/src/utils/formatCurrency.js`.
+
+### Suite 3: Integration Testing (`testing/3_integration_testing.py`)
+- Menguji integrasi end-to-end REST API live di port 80 dan 8081 (`GET /health`, `POST /predictions`, `GET /predictions/{id}`, `GET /models/active`, `GET /developer/overview`, `GET /stats/dataset`).
+- Menguji penanganan error dan upload multipart CSV (`mode=update` append, penolakan mode invalid 400, header rusak 400, CSV tanpa listing Bekas 400).
+- Memverifikasi isolasi keamanan Nginx dua port: Port 80 publik memblokir aset developer (HTTP 404), Port 8081 loopback memblokir index publik (HTTP 404) dan membuka Swagger UI (`/docs`).
+
+### Suite 4: Functional Testing (`testing/4_functional_testing.py`)
+- Memverifikasi proses build produksi Vite multi-page (`npm run build`) yang menghasilkan dua bundle terpisah: `index.html` (User Portal) dan `developer.html` (Developer Portal).
+- Memastikan tidak ada bundle chunk developer yang bocor ke dalam bundle publik.
+- Mengaudit seluruh source code frontend (`frontend/src/`) untuk menjamin 0 karakter emoji dan ketiadaan endpoint hardcoded.
+- Memvalidasi matriks use-case fungsional sistem (UC1 s.d. UC12).
+
+### Suite 5: Model & XAI Validation (`testing/5_model_xai_validation.py`)
+- Memverifikasi integritas kontrak 6 file artifact pada `artifacts/models/xgboost/xgb-v1/`.
+- Menguji reproduksibilitas pelatihan ulang model dengan random seed 42 ke direktori sementara tanpa menimpa model produksi (R2 >= 0.93, MAPE <= 9%).
+- Menguji kebenaran native Tree SHAP pada 5 skenario input (tipikal, kilometer ekstrem, tahun tua 1975, kategori asing, fallback kilometer).
+- Memastikan jaminan additivitas Tree SHAP: `|Base Value + sum(phi) - Prediksi| <= Rp1.000` dan latensi inferensi di bawah 10 detik.
+
+### Metode eksekusi (urutan wajib `0 -> 1 -> 2 -> 3 -> 4 -> 5`)
+
+Pre-task: `git log -n 10 --oneline`, `git status --short`, `git diff --check`; baca `AGENTS.md`, `README.md`, `.env.example`, header `dataset.csv`. Petakan stack `backend/app/{api,core,db,ml,repositories,schemas,services}`, `ml/scripts/`, `frontend/src/`, `artifacts/models/xgboost/xgb-v1/`, `testing/`. Jangan `git commit` tanpa approval; jangan timpa `artifacts/.../xgb-v1/` (retrain uji pakai `ARTIFACT_ROOT` temp); env kunci `MIN_YEAR=1930,MAX_YEAR=2026,MAX_KM=1000000,INFERENCE_TIMEOUT_S=10,RANDOM_SEED=42`.
+
+- **Suite 1 — Data Validation**: `python ml/scripts/profile_dataset.py` harus menghasilkan `rows=22679`, 14 kolom, `missing=0`, `Bekas+Used=21553` (`Baru=1126` dibuang), korelasi `KM_1-KM_2 ~0.999` (pakai `km_1`), `brand~51, brand_type~2002, location~22`, `year 1975-2025`. Quality check independen: duplikat=0, `price<=0`=0, year/km di luar batas=0, kolom teks mentah tidak jadi fitur. Aturan ETL (`etl_service.py:11-55`): tolak header hilang, `listing__type=Baru`, year/km/price invalid, kategori kosong, mode selain update/replace.
+- **Suite 2 — Unit Testing**: `cd backend && python -m pytest tests -q` (SQLite isolasi via `conftest.py`) — baseline `17 passed`. Cakupan: `CategoricalPreprocessor` (kategori asing -> `pd.NA`), `ModelManager.predict_row` (6 fitur, sort `abs(shap)`), `PredictionService` (fallback `km_1 ?? km_2`, `price=max(0,round)`, log best-effort), skema Pydantic (`year`/`km` invalid -> 422, `km_1=km_2=None` -> 422, `extra=forbid`), `normalize_mode`/`_parse_row`, repository roundtrip, `formatCurrency.js`. Verifikasi statis `compileall` + `git diff --check` bersih.
+- **Suite 3 — Integration Testing**: payload kanonis `{"brand":"Honda","brand_type":"City 1.5 E Sedan","machine_type":"Automatic","location":"DKI Jakarta","year":2021,"km_1":45000,"km_2":45000}`. `GET /health` -> 200 (`xgb-v1`) / 503 bila model belum load; `POST /predictions` -> 200 (6 fitur, `currency=IDR`); `GET /predictions/{id}` roundtrip; `GET /models/active` ada `metrics.test`; ETL `update` -> `append valid_rows=2`, `replace` -> `replaced=true`; header/mode/tipe salah dan semua-`Baru` -> 400; kategori asing -> 200, tipe/numerik salah -> 422. Docker E2E: `compose config/up/ps`, curl health/predict/overview, postgres privat, artifact read-only, `model_version` tertelusur ke baris `predictions`. Nginx: `:80` 404 untuk `developer.html`, `:8081` 404 untuk `index.html` + buka `/docs`.
+- **Suite 4 — Functional Testing**: `npm run build` dua entry terisolasi (`developer-*.js` tidak bocor ke bundle publik), audit 0 emoji + tanpa hardcode di `frontend/src/`, matriks UC1-UC12 (User: input-estimasi-SHAP-dashboard; Developer: overview-datasets-ETL-models-playground-API explorer), state kosong/loading/error informatif, responsif 768px, keyboard-friendly, kontras WCAG AA.
+- **Suite 5 — Model & XAI Validation**: kontrak 6 file artifact; baseline `MAE=25446042, RMSE=52997228.34, MAPE=8.397%, R2=0.9371, n_test=4311`. Retrain uji seed 42 ke dir temp: gate `R2>=0.93, MAPE<=9%`, toleransi ±10%. XAI via `predict_row` pada 5 skenario (tipikal, km ekstrem, tahun 1975, kategori asing, fallback km): 6 fitur, `base>0`, `price>=0`, additivitas `|base+sum(shap)-price|<=Rp1.000`, deterministik, latensi < `INFERENCE_TIMEOUT_S`. SHAP global opsional (`TreeExplainer` 200 baris -> shape `(200,6)`; skip di Python 3.13 = skipped bukan fail).
+
+### Cara menjalankan
+
+Prasyarat: Docker Compose aktif (`docker compose up -d`), Python 3.11+, Node.js.
+
+```bash
+python testing/run_all.py
+# atau per suite:
+python testing/1_data_validation.py
+python testing/2_unit_testing.py
+python testing/3_integration_testing.py
+python testing/4_functional_testing.py
+python testing/5_model_xai_validation.py
+```
+
+### Hasil eksekusi resmi (13 Okt 2026, commit `e96a380`) — verdict GO
+
+| Kategori | Status | Bukti kunci |
+|---|:---:|---|
+| 0. Pre-task | PASS | working tree bersih, kontrak tervalidasi |
+| 1. Data Validation | PASS | 22679 baris, 21553 Bekas/Used, 0 null/duplikat, 8 kasus ETL lolos, korelasi 0.998979 |
+| 2. Unit Testing | PASS | `17 passed` (1.29s), `compileall` bersih, `formatIDR(150jt)=Rp 150.000.000` |
+| 3. Integration | PASS | health/predict/models/ETL/stats 200, `bad_mode/bad_header/all_baru` 400, isolasi `p80 dev:404, p8081 docs:200/idx:404` |
+| 4. Functional | PASS | build 1.37s, chunk developer 16.5 KB terpisah, 0 emoji, UC1-UC12 valid |
+| 5. Model & XAI | PASS | 6 file utuh, retrain `R2=0.9364, MAPE=8.19%`, residu <= Rp116, latensi <= 14.5 ms |
+| TOTAL | PASS | 0 FAIL, 0 SKIPPED |
+
+Matriks XAI (`base=313.736.320` semua kasus): Tipikal Honda 2021 Rp215.566.928 residu Rp70,25 (14.52 ms); KM ekstrem Avanza 2015 Rp158.925.200 residu Rp116,00 (5.58 ms); Tahun tua Corolla 1975 Rp85.211.360 residu Rp5,50 (6.69 ms); Kategori asing Rp688.307.712 residu Rp33,00 (8.26 ms); Fallback KM Xenia 2018 Rp125.330.320 residu Rp52,50 (5.29 ms). Residu berasal dari presisi float32, di bawah toleransi Rp1.000. `xgb-v1` tidak tertimpa (retrain di dir temp), `git diff --check` bersih, tanpa commit otomatis.
+
+### Kriteria penerimaan
+
+- [x] Dataset dimuat dan divalidasi (21.553 Bekas/Used, 0 missing).
+- [x] Preprocessing reproducible (satu pipeline train = inference).
+- [x] XGBoost terlatih sebagai artifact versioned (`xgb-v1`).
+- [x] Prediksi di test set + MAE/RMSE/MAPE/R2 terhitung.
+- [x] SHAP lokal per prediksi (aditivitas terverifikasi; global mengikuti dari artifact + metrik).
+- [x] Endpoint prediksi + explanation berjalan.
+- [x] Endpoint dataset/ETL berjalan (upload Update/Replace, validasi skema, filter Bekas/Used).
+- [x] Endpoint model metadata berjalan (active + list + metrik).
+- [x] Endpoint developer overview berjalan.
+- [x] ReactJS User Portal kirim input, tampilkan harga + SHAP.
+- [x] Developer Portal 6 modul (overview, datasets, ETL, models, playground, API explorer).
+- [x] Developer Portal terisolasi di port loopback, bundle user bersih dari kode developer.
+- [x] PostgreSQL simpan metadata dataset/model, riwayat ETL, + log prediksi.
+- [x] `docker compose up` menjalankan semua service.
+- [x] `model_version` tertelusur dari respons prediksi.
+
+## Fase 6: Deployment
+
+### Konfigurasi dan password
 
 Semua endpoint, secret, dan parameter via environment (`.env`, contoh di
 `.env.example`). Tidak ada hardcode port/URL/secret di source code.
@@ -520,7 +661,7 @@ Variabel utama: `DATABASE_URL`, `POSTGRES_DB/USER/PASSWORD/HOST_AUTH_METHOD`,
 `RANDOM_SEED`, `DATASET_PATH`, `SEED_ON_STARTUP`, `SEED_CSV_PATH`,
 `VITE_API_URL`, `VITE_API_TIMEOUT_MS`, `VITE_USER_PORTAL_URL`.
 
-## 10. Deploy dan menjalankan
+### Deploy dan menjalankan
 
 Prasyarat: Docker + Docker Compose v2.
 
@@ -577,77 +718,17 @@ lalu `uvicorn app.main:app` dari `backend/` (set `DATABASE_URL` sqlite/Postgres
 dan `MODEL_DIR` absolut); frontend `npm install && npm run dev` dari `frontend/`
 (proxy `/api` ke `localhost:8000`, kedua entry ter-serve oleh Vite dev server).
 
-## 11. Testing
+## Fase 7: Pemeliharaan dan Evaluasi
 
-- Phase 1: `profile_dataset.py` (filter 21.553 baris, korelasi 0,999) dan
-  `train_baseline.py` (native categorical XGBoost, metrik di atas, artifact 6 file).
-- Phase 2: `cd backend && python -m pytest tests -q` (17 passed: health,
-  prediksi valid, roundtrip GET, 422 numerik invalid, 422 tipe salah + 200
-  kategori asing, models/active + metrik, upload update/replace, validasi skema,
-  mode/tipe file invalid, ETL jobs, dataset detail, models list, developer
-  overview).
-- Phase 3: `npm run build` (dua entry `index.html` + `developer.html`; bundle
-  user terverifikasi bersih dari kode developer), unit `formatCurrency`, smoke
-  API + `vite preview`, cek bundle (tanpa hardcode/emoji/em dash), kontras WCAG
-  AA, Delivery Gate Antislop.
-- Phase 4: `docker compose config` + build semua image + uji e2e di atas
-  (React -> Nginx -> FastAPI -> XGBoost -> SHAP -> PostgreSQL, plus alur
-  Developer Portal -> ETL -> PostgreSQL dan Swagger -> OpenAPI -> FastAPI).
+Evaluasi resmi 13 Okt 2026 (commit `e96a380`) memberi verdict **GO**: 6/6 kategori
+pengujian PASS, 0 FAIL — lihat matriks hasil di Fase 5. Pemeliharaan bertumpu pada
+artifact versioned per `model_version`, retraining offline/manual tanpa auto-deploy,
+dan reproducibility seed 42.
 
-## 12. Struktur repo
-
-```text
-frontend/                  # ReactJS, dua entry: index.html (user) + developer.html
-  src/
-    layouts/               # DesktopView/MobileView (user) + DeveloperShell
-    developer/             # devNav.js + main.jsx (entry developer)
-    components/            # prediction (dipakai ulang playground), nav, shell user
-    pages/                 # Home/Prediction/DataDashboard + developer/ (6 modul)
-    services/hooks/utils/  # api.js, usePrediction.js, formatCurrency.js
-  nginx.conf               # dua server: :80 user, :8081 developer (+ blokir silang)
-backend/                   # FastAPI (app/api, core, db, repositories, schemas, services)
-  app/api/                 # routes_health/prediction/model/dataset/etl/developer/stats
-  app/services/            # prediction_service, model_manager, stats_service, etl_service
-ml/scripts/                # profile_dataset, train_baseline, seed_db
-data/processed/            # hasil filter (regenerable, di-ignore git)
-artifacts/models/          # artifact versioned xgb-v1
-infra/nginx/               # reverse proxy dua port (80 publik + 8081 loopback)
-infra/pgadmin/             # servers.json praregistrasi
-docker-compose.yml
-.env.example
-```
-
-Urutan implementasi: Phase 1 data/ML -> Phase 2 dataset/ETL -> Phase 3 backend +
-model management -> Phase 4 Developer Portal -> Phase 5 User Dashboard ->
-Phase 6 containerization. Tanpa auto-retraining (offline/manual saja).
-
-## 13. Kriteria penerimaan
-
-- [x] Dataset dimuat dan divalidasi (21.553 Bekas/Used, 0 missing).
-- [x] Preprocessing reproducible (satu pipeline train = inference).
-- [x] XGBoost terlatih sebagai artifact versioned (`xgb-v1`).
-- [x] Prediksi di test set + MAE/RMSE/MAPE/R2 terhitung.
-- [x] SHAP lokal per prediksi (aditivitas terverifikasi; global mengikuti dari artifact + metrik).
-- [x] Endpoint prediksi + explanation berjalan.
-- [x] Endpoint dataset/ETL berjalan (upload Update/Replace, validasi skema, filter Bekas/Used).
-- [x] Endpoint model metadata berjalan (active + list + metrik).
-- [x] Endpoint developer overview berjalan.
-- [x] ReactJS User Portal kirim input, tampilkan harga + SHAP.
-- [x] Developer Portal 6 modul (overview, datasets, ETL, models, playground, API explorer).
-- [x] Developer Portal terisolasi di port loopback, bundle user bersih dari kode developer.
-- [x] PostgreSQL simpan metadata dataset/model, riwayat ETL, + log prediksi.
-- [x] `docker compose up` menjalankan semua service.
-- [x] `model_version` tertelusur dari respons prediksi.
-
-## 14. Keterbatasan dan lanjutan TA
+### Keterbatasan
 
 Keterbatasan CP: baseline satu model, lib `shap` tidak bisa build di Python 3.13
 lokal (diverifikasi di image 3.11; inference memakai kontribusi native XGBoost), training
 offline/manual tanpa endpoint, tanpa auth/drift-monitoring. Isolasi Developer
 Portal mengandalkan bind loopback + split entry (tanpa login); auth penuh
 ditunda ke TA.
-
-Lanjutan TA yang disiapkan arsitektur: tambah `Authentication + User Management +
-Dashboard analytics + Model monitoring` di sisi aplikatif; `Random Forest +
-LightGBM + LIME + uji konsistensi explanation` di sisi riset. Service backend
-tetap, perubahan di layer eksperimen dan model registry.

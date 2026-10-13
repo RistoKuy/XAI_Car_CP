@@ -12,6 +12,7 @@
 - **Strict User Permission for Git Commit Rule**: NEVER execute `git commit` or commit code changes without explicit user request or prior user approval.
 - **Comprehensive Commit Description Rule**: Every git commit message MUST include a clear, descriptive subject line followed by a comprehensive, detailed multi-line commit body explaining all specific code updates, files modified, and underlying architectural rationale.
 - **Continuous Documentation Synchronization Rule**: ALWAYS update and synchronize all project documentation (specifically [README.md](README.md) and [AGENTS.md](AGENTS.md)) whenever code, architecture, schemas, endpoints, or configurations change. Never leave documentation stale or lagging behind implementation.
+- **Documentation Centralization Rule**: ALL documentation MUST be centralized in [README.md](README.md) and [AGENTS.md](AGENTS.md). NEVER create fragmented `README.md` files inside subdirectories (`testing/`, `backend/`, `frontend/`, `ml/`, `infra/`). Subdirectory docs are forbidden except a 3-line pointer to the main README section. Before creating any `.md` file, extend the relevant README section instead.
 
 ---
 
@@ -43,6 +44,7 @@ Deliverable end-to-end (§1): dataset + metadata model di PostgreSQL, preprocess
 > 1. AI Agent **WAJIB** segera memperbarui seluruh dokumentasi terkait, terutama [README.md](README.md) dan [AGENTS.md](AGENTS.md), pada siklus/turn yang sama.
 > 2. Pastikan penjelasan arsitektur, daftar endpoint, diagram alur, konfigurasi environment, dan spesifikasi teknis selalu akurat dan mencerminkan kode aktual.
 > 3. Dokumentasi tidak boleh dibiarkan usang (*stale*), tertinggal, atau tidak sinkron dengan codebase.
+> 4. Dokumentasi **WAJIB** tersentralisasi di [README.md](README.md) dan [AGENTS.md](AGENTS.md). DILARANG membuat `README.md` fragmentaris di subdirektori (`testing/`, `backend/`, `frontend/`, `ml/`, `infra/`). Setiap panduan baru wajib menjadi seksi di README utama, bukan file `.md` baru.
 
 ---
 
@@ -51,6 +53,7 @@ Deliverable end-to-end (§1): dataset + metadata model di PostgreSQL, preprocess
 | Documentation File | Purpose & Contents |
 | --- | --- |
 | [dataset.csv](dataset.csv) | **Raw Dataset**: 22.679 rows, 14 columns, target `price`; categorical `brand`, `brand_type`, `machine_type`, `location`, `listing__type`; numeric `year`, `KM_1`, `KM_2`; text `item`, `ellipsize`, `listing__excerpt`; tanpa missing value. |
+| [testing/](testing/) (`run_all.py` + `1_data_validation.py` s.d. `5_model_xai_validation.py`, panduan di [README Fase 5](README.md#fase-5-integrasi-dan-pengujian)) | **Testing Suite Modular**: 5 skrip flat tanpa subdirektori. Metode, hasil, dan matriks XAI WAJIB terpusat di README Fase 5 — file laporan terpisah dilarang. |
 
 ---
 
@@ -114,7 +117,7 @@ Request `POST /predictions` memakai field lowercase `km_1`, `km_2` (API) yang di
 - **Model artifact convention (§17)**: per versi di `artifacts/models/xgboost/<version>/` — `model.json`, `preprocessing.joblib`, `feature_schema.json`, `metrics.json`, `training_config.json`, `shap_config.json`.
 - **Validation bounds (§18)**: `1930 <= year <= current_allowed_limit`, `0 <= km_1/km_2 <= reasonable_upper_bound`, output `price >= 0`. Bounds final disesuaikan dengan distribusi data, bukan hardcode tanpa dasar. Wajib juga: CORS eksplisit, error handling terstruktur, connection pooling, timeout inference, health endpoint.
 - **DB schema (ERD §9)**: 6 tabel — `DATASET`, `ETL_JOB`, `LISTING`, `MODEL_VERSION`, `MODEL_METRIC` (per split), `PREDICTION` (`input_payload` + `shap_payload` sebagai JSONB). PostgreSQL tidak diekspos ke public network.
-- **Repo structure (§21)**: `frontend/`, `backend/app/{api,core,db,ml,repositories,schemas,services}`, `ml/{notebooks,scripts,experiments}`, `data/{raw,processed}`, `artifacts/models/`, `infra/nginx/`, `docker-compose.yml`, `.env.example`.
+- **Repo structure (§21)**: `frontend/`, `backend/app/{api,core,db,ml,repositories,schemas,services}`, `testing/{run_all.py,1_data_validation.py,2_unit_testing.py,3_integration_testing.py,4_functional_testing.py,5_model_xai_validation.py}` (flat, tanpa subdirektori), `ml/{notebooks,scripts,experiments}`, `data/{raw,processed}`, `artifacts/models/`, `infra/nginx/`, `docker-compose.yml`, `.env.example`.
 - **Implementation order (§22)**: Jangan memulai dari frontend. Phase 1 — Data & ML Baseline (freeze model + preprocessing), Phase 2 — Backend API, Phase 3 — Frontend, Phase 4 — Containerization.
 - **No auto-retraining**: Retraining hanya sebagai offline/manual workflow (§8 training script). Tidak ada concept-drift detection dalam scope.
 - **ETL upload**: CSV divalidasi dan diproses streaming dengan batch insert; persistent staging file belum digunakan.
@@ -133,10 +136,17 @@ Request `POST /predictions` memakai field lowercase `km_1`, `km_2` (API) yang di
 ---
 
 ## Methodology & Testing Requirements (§19)
-- **Backend unit test (Pytest)**: preprocessing, prediction service, SHAP service, repository, schema validation.
-- **API test**: `GET /health`, valid prediction request, invalid categorical input, invalid numeric input, model unavailable scenario.
-- **Frontend test**: form validation, loading state, error state, prediction rendering, SHAP chart rendering.
-- **Integration test**: React → Nginx → FastAPI → XGBoost → SHAP → PostgreSQL.
+
+Metode baku (detail perintah di [README Fase 5](README.md#fase-5-integrasi-dan-pengujian), skrip di `testing/run_all.py` + `1_data_validation.py` s.d. `5_model_xai_validation.py`):
+
+- **Pre-task wajib**: `git log -n 10 --oneline`, `git status --short`, `git diff --check`; baca `AGENTS.md` + `README.md` + `.env.example` + header `dataset.csv`. Jangan timpa `artifacts/.../xgb-v1/` (retrain uji ke `ARTIFACT_ROOT` temp).
+- **Data Validation** (`testing/1_data_validation.py`): `profile_dataset.py` -> `rows=22679`, 14 kolom, `missing=0`, `Bekas+Used=21553`, korelasi `KM_1-KM_2 ~0.999`; quality check duplikat/batas/teks-baseline; aturan tolak ETL (`etl_service.py:11-55`) untuk header hilang, `Baru`, year/km/price/kategori/mode invalid.
+- **Backend unit test (Pytest, SQLite)**: `cd backend && python -m pytest tests -q` -> `17 passed`; preprocessing (`pd.Categorical`, asing -> `pd.NA`), prediction service (fallback `km_1 ?? km_2`, `max(0,round)`, log best-effort), SHAP service (`predict_row` 6 fitur sort `abs(shap)`), repository roundtrip, schema validation (422/extra-forbid); plus `compileall` + `git diff --check` bersih dan `formatCurrency.js`.
+- **API test**: `GET /health` (200/`xgb-v1`, 503 bila model down), valid prediction request (200, 6 fitur, `IDR`), invalid categorical input (asing -> 200 missing-category), invalid numeric input (422), model unavailable scenario, ETL upload update/replace vs 400, `GET /predictions/{id}` roundtrip, `models/active`, `developer/overview`, `stats/dataset`.
+- **Frontend test**: `npm run build` dua entry terisolasi, 0 emoji, tanpa hardcode; form validation, loading state, error state, prediction rendering, SHAP chart rendering; UC1-UC12; responsif 768px; keyboard-friendly; WCAG AA.
+- **Integration test**: React → Nginx → FastAPI → XGBoost → SHAP → PostgreSQL; Docker E2E (`compose config/up/ps` + curl health/predict/overview); isolasi `:80` vs `127.0.0.1:8081`; `model_version` tertelusur ke baris `predictions` (JSONB).
+- **Model & XAI gate**: 6 file artifact; baseline `MAE=25446042, RMSE=52997228.34, MAPE=8.397%, R2=0.9371, n_test=4311`; retrain seed 42 -> `R2>=0.93, MAPE<=9%`; additivitas `|base+sum(shap)-price|<=Rp1.000`; latensi < `INFERENCE_TIMEOUT_S`; 5 skenario (tipikal/km-ekstrem/tahun-tua/asing/fallback).
+- **Hasil resmi 13 Okt 2026 (commit `e96a380`)**: 6/6 PASS, 0 FAIL, 0 SKIPPED — Data (0 null/duplikat, 8 kasus ETL), Unit (`17 passed` 1.29s), Integration (isolasi port terkonfirmasi), Functional (build 1.37s, 0 emoji, UC1-UC12), XAI (retrain `R2=0.9364, MAPE=8.19%`, residu maks Rp116, latensi maks 14.5 ms). Verdict: **GO**.
 - **Acceptance criteria (§20)**: dataset tervalidasi, preprocessing jalan tanpa manual intervention, XGBoost terlatih & tersimpan sebagai artifact, prediction pada test set, MAE/RMSE/MAPE/R² terhitung, SHAP global + local dibuat, endpoint prediction berjalan, ReactJS mengirim input & menampilkan predicted price + SHAP explanation, PostgreSQL menyimpan dataset metadata + prediction log, semua service jalan dengan `docker compose up`, `model_version` dapat ditelusuri dari prediction response.
 
 ---
@@ -334,10 +344,17 @@ pgAdmin:          http://localhost:5050
 
 ## Testing and Acceptance
 
-Backend test suite saat ini mencakup health, prediction, validation, model
-metadata, ETL upload update/replace, dataset detail, ETL history, dan overview.
-Perubahan backend terakhir tervalidasi dengan `17 passed`; compile Python dan
-`git diff --check` juga wajib lulus.
+Backend test suite mencakup health, prediction, validation, model
+metadata, ETL upload update/replace, dataset detail, ETL history, dan overview
+(`17 passed`); compile Python dan `git diff --check` wajib lulus. Metode lengkap
+di [README Fase 5](README.md#fase-5-integrasi-dan-pengujian); skrip di
+`testing/` (`run_all.py` + `1_data_validation.py` s.d. `5_model_xai_validation.py`).
+
+Hasil resmi 13 Okt 2026 (commit `e96a380`): 6/6 kategori PASS, 0 FAIL —
+Data (22679 baris, 21553 Bekas/Used, korelasi 0.998979), Unit (17 passed 1.29s),
+Integration (isolasi `:80`/`:8081` terkonfirmasi), Functional (build 1.37s,
+UC1-UC12), XAI (6 artifact utuh, retrain `R2=0.9364/MAPE=8.19%`, 5 kasus residu
+<= Rp116, latensi <= 14.5 ms). Verdict: **GO**.
 
 CP dianggap selesai ketika dataset tervalidasi, pipeline native categorical dapat
 melatih model versioned, metrik dan explanation tersedia, endpoint prediction /
