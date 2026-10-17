@@ -31,6 +31,8 @@ Dokumentasi ini disusun mengikuti 7 fase Waterfall. Urutan fase = urutan baca.
 - [Fase 5: Integrasi dan Pengujian](#fase-5-integrasi-dan-pengujian)
 - [Fase 6: Deployment](#fase-6-deployment)
 - [Fase 7: Pemeliharaan dan Evaluasi](#fase-7-pemeliharaan-dan-evaluasi)
+- [BAB III: Metode Pengembangan](#bab-iii-metode-pengembangan)
+- [BAB IV: Gambaran Pengembangan Produk](#bab-iv-gambaran-pengembangan-produk)
 
 ## Fase 1: Analisis Kebutuhan
 
@@ -732,3 +734,552 @@ lokal (diverifikasi di image 3.11; inference memakai kontribusi native XGBoost),
 offline/manual tanpa endpoint, tanpa auth/drift-monitoring. Isolasi Developer
 Portal mengandalkan bind loopback + split entry (tanpa login); auth penuh
 ditunda ke TA.
+
+---
+
+# BAB III METODE PENGEMBANGAN
+
+## 3.1 Tahapan Pengembangan
+
+Pengembangan OtoValue memakai pendekatan *System Development Life Cycle* (SDLC)
+model *Waterfall*. Model ini dipilih karena kebutuhan sistem sudah terdefinisi
+sejak awal, yaitu menghasilkan estimasi harga mobil bekas sekaligus menjelaskan
+faktor yang mempengaruhinya. Tahapan berjalan berurutan dan keluaran setiap fase
+menjadi masukan fase berikutnya. Pengembangan dibagi menjadi tujuh fase.
+
+**Fase 1: Analisis Kebutuhan.** Memetakan prinsip estimasi harga dan penjelasan
+SHAP, mengidentifikasi dua aktor (User Umum dan Developer), mendefinisikan 12
+*use case* utama (UC1 sampai UC12), serta menetapkan batas ruang lingkup proyek.
+
+**Fase 2: Perancangan Sistem.** Merancang arsitektur berlapis, skema basis data
+relasional enam tabel (ERD), kontrak REST API `/api/v1`, dan topologi *reverse
+proxy* Nginx dua port.
+
+**Fase 3: Persiapan Data dan Machine Learning.** Memfilter dataset menjadi 21.553
+baris listing `Bekas` dan `Used`, memproses empat fitur kategorikal dengan tipe
+`pandas.Categorical`, melatih model XGBoost dengan `enable_categorical=true`, dan
+mengekspor artefak terversi `xgb-v1`.
+
+**Fase 4: Implementasi Sistem.** Membangun layanan backend FastAPI,
+mengintegrasikan engine *Tree SHAP* native, dan menyusun dua portal ReactJS
+terisolasi (User Portal dan Developer Portal).
+
+**Fase 5: Integrasi dan Pengujian.** Mengeksekusi lima suite pengujian terpusat:
+Data Validation, Unit Testing, Integration Testing, Functional Testing, dan
+Model/XAI Validation.
+
+**Fase 6: Deployment.** Mengontainerisasi seluruh layanan dengan Docker Compose,
+memakai konfigurasi *passwordless* lokal dan isolasi *loopback* untuk Developer
+Portal.
+
+**Fase 7: Pemeliharaan dan Evaluasi.** Menjalankan pengujian penerimaan dengan
+verdict GO/NO-GO dan mendokumentasikan keterbatasan sistem untuk pengembangan
+lanjutan.
+
+Alur berurutan tujuh fase tersebut digambarkan pada Gambar 3.1.
+
+```mermaid
+flowchart TB
+    F1["Fase 1\nAnalisis Kebutuhan"]
+    F2["Fase 2\nPerancangan Sistem"]
+    F3["Fase 3\nPersiapan Data dan ML\n(artefak xgb-v1)"]
+    F4["Fase 4\nImplementasi Sistem\n(FastAPI + dual portal)"]
+    F5["Fase 5\nIntegrasi dan Pengujian\n(5 suite)"]
+    F6["Fase 6\nDeployment\n(Docker Compose)"]
+    F7["Fase 7\nPemeliharaan dan Evaluasi\n(verdict GO)"]
+    F1 --> F2 --> F3 --> F4 --> F5 --> F6 --> F7
+```
+
+Gambar 3.1 Diagram alur pengembangan SDLC Waterfall OtoValue
+
+Setiap fase memakai metode dan algoritma yang berbeda. Pemetaannya ada pada
+Tabel 3.1.
+
+Tabel 3.1 Pemetaan fase, metode, dan algoritma
+
+| Fase | Metode | Algoritma / Teknologi |
+|---|---|---|
+| 1 | Analisis kebutuhan aktor dan use case | Pemodelan use case (UC1-UC12) |
+| 2 | Perancangan arsitektur dan basis data | Layered architecture, ERD 6 tabel, kontrak REST |
+| 3 | Persiapan data dan pelatihan model | Filter Bekas/Used, `pandas.Categorical`, XGBoost native categorical (`enable_categorical=true`), split 80/20 seed 42 |
+| 4 | Implementasi layanan dan antarmuka | FastAPI + Pydantic, Tree SHAP native (`predict(pred_contribs=True)`), ReactJS dua entry, repository pattern |
+| 5 | Pengujian perangkat lunak | Pytest, pengujian integrasi REST, pengujian fungsional build, validasi XAI |
+| 6 | Deployment | Docker Compose, Nginx reverse proxy dua port |
+| 7 | Evaluasi penerimaan | Verdict GO/NO-GO berbasis matriks kriteria penerimaan |
+
+## 3.2 Instrumen Penelitian
+
+Penelitian ini memakai instrumen perangkat keras, perangkat lunak, serta aset
+data yang dijelaskan berikut.
+
+**Perangkat keras.** Komputer pengembangan atau server lokal untuk menjalankan
+kontainer Docker dan proses pelatihan model. *[perlu dilengkapi: spesifikasi CPU,
+RAM, dan penyimpanan yang dipakai]*
+
+**Perangkat lunak.** Bahasa Python 3.11+ untuk backend dan pipeline ML,
+JavaScript/Node.js untuk frontend, FastAPI dan Uvicorn sebagai ASGI server,
+ReactJS dengan Vite *multi-page build*, Tailwind CSS, XGBoost
+(`enable_categorical=true`), pandas, NumPy, Joblib, Pytest, PostgreSQL 16,
+SQLAlchemy 2.0 ORM, pgAdmin 4, Nginx Alpine, serta Docker Engine dan Docker
+Compose v2.
+
+**Dataset dan artefak.** Dataset transaksi mobil bekas `dataset.csv` dengan
+22.679 baris mentah dan 21.553 baris terfilter, serta paket artefak terversi
+`xgb-v1` yang terdiri dari enam file (`model.json`, `preprocessing.joblib`,
+`feature_schema.json`, `metrics.json`, `training_config.json`,
+`shap_config.json`).
+
+Tabel 3.2 Instrumen penelitian
+
+| Kategori | Instrumen |
+|---|---|
+| Hardware | Komputer pengembangan/server lokal *[perlu dilengkapi: spesifikasi]* |
+| Bahasa | Python 3.11+, JavaScript/Node.js |
+| Backend | FastAPI, Uvicorn, Pydantic |
+| Frontend | ReactJS (Vite multi-page), Tailwind CSS |
+| Machine Learning | XGBoost (native categorical), pandas, NumPy, Joblib, scikit-learn, Pytest |
+| Basis data | PostgreSQL 16, SQLAlchemy 2.0, pgAdmin 4 |
+| Infrastruktur | Nginx Alpine, Docker Engine, Docker Compose v2 |
+| Data | `dataset.csv` (22.679 baris / 21.553 terfilter), artefak `xgb-v1` (6 file) |
+
+---
+
+# BAB IV GAMBARAN PENGEMBANGAN PRODUK
+
+## 4.1 Gambaran Sistem
+
+### 4.1.1 Gambaran Sistem Saat Ini
+
+Pada kondisi saat ini belum ada sistem terintegrasi yang menghitung estimasi
+harga mobil bekas sekaligus menjelaskan faktor penyebabnya. Penentuan harga
+berjalan tanpa pipeline data yang terstandar dan tanpa model yang dapat
+ditelusuri versinya. *[perlu dilengkapi: uraian proses atau alat eksisting yang
+dipakai sebelum produk ini, misalnya cara penjual atau pembeli menentukan harga
+saat ini]*
+
+### 4.1.2 Target Produk Dikembangkan
+
+Target produk adalah *proof-of-concept* end-to-end bernama OtoValue dengan dua
+sasaran:
+
+1. Memprediksi harga mobil bekas memakai model XGBoost dari karakteristik
+   kendaraan (`brand`, `brand_type`, `machine_type`, `year`, `km_1`, `location`).
+2. Menjelaskan prediksi tersebut memakai SHAP, baik penjelasan global maupun
+   lokal, sehingga pengguna memahami besar kontribusi tiap faktor.
+
+### 4.1.3 Gambaran Umum Produk Dikembangkan
+
+OtoValue berjalan sebagai aplikasi web dengan dua portal terpisah: User Portal di
+port 80 untuk publik dan Developer Portal di port 8081 yang hanya di-*bind* ke
+*loopback*. Keduanya memanggil backend FastAPI yang memuat model XGBoost dan
+menghitung prediksi beserta penjelasan fitur di dalam alur request. Gambaran umum
+ditampilkan pada Gambar 4.1.
+
+```mermaid
+flowchart TB
+    U([User Umum]) --> N80["Nginx :80\nUser Portal (publik)"]
+    D([Developer]) --> N8081["Nginx :8081\nDeveloper Portal (loopback)"]
+    N80 -->|"/api/*"| API["FastAPI /api/v1"]
+    N8081 -->|"/api/*"| API
+    API --> SVC["PredictionService\n+ ModelManager"]
+    SVC --> PRE["Preprocessing\npandas.Categorical"]
+    PRE --> MODEL["XGBoost\nxgb-v1"]
+    MODEL --> XAI["Tree SHAP native\npred_contribs=True"]
+    API --> DB[("PostgreSQL 16\n6 tabel")]
+```
+
+Gambar 4.1 Gambaran umum arsitektur produk OtoValue
+
+## 4.2 Gambaran Sistem Dikembangkan
+
+### 4.2.1 Fungsi Utama Produk
+
+Sistem mendukung dua aktor dengan 12 fungsi utama yang dipetakan sebagai UC1
+sampai UC12. User Umum menginput data kendaraan, menerima estimasi harga,
+membaca penjelasan SHAP, dan melihat dashboard data. Developer melihat overview
+sistem, mengunggah dataset, menjalankan ETL, melihat riwayat ETL, melihat
+katalog model dan metrik, menguji *playground* prediksi, dan menjelajahi API
+melalui Swagger. Pemetaan fungsi digambarkan pada Gambar 4.2.
+
+```mermaid
+flowchart LR
+    U([User Umum])
+    D([Developer])
+    subgraph SYS[OtoValue]
+        UC1((UC1 Input Data Kendaraan))
+        UC2((UC2 Hitung Estimasi Harga))
+        UC3((UC3 Lihat Penjelasan SHAP))
+        UC4((UC4 Lihat Dashboard Data))
+        UC5((UC5 Lihat System Overview))
+        UC6((UC6 Upload Dataset CSV))
+        UC7((UC7 Pilih Mode Update / Replace))
+        UC8((UC8 Jalankan ETL + Validasi))
+        UC9((UC9 Lihat Riwayat ETL))
+        UC10((UC10 Lihat Model + Metrik))
+        UC11((UC11 Uji Prediction Playground))
+        UC12((UC12 Jelajahi API via Swagger))
+    end
+    U --> UC1
+    UC1 -. include .-> UC2
+    UC2 -. include .-> UC3
+    U --> UC4
+    D --> UC5
+    D --> UC6
+    UC6 -. include .-> UC7
+    UC7 -. include .-> UC8
+    D --> UC9
+    D --> UC10
+    D --> UC11
+    UC11 -. include .-> UC2
+    D --> UC12
+```
+
+Gambar 4.2 Fungsi utama produk (use case UC1-UC12)
+
+Penjelasan fungsi tiap use case ada pada Tabel 4.1.
+
+Tabel 4.1 Daftar fungsi utama produk
+
+| Kode | Aktor | Fungsi |
+|---|---|---|
+| UC1 | User Umum | Input data kendaraan pada formulir estimasi |
+| UC2 | User Umum | Hitung estimasi harga melalui model XGBoost |
+| UC3 | User Umum | Lihat penjelasan SHAP tiap fitur |
+| UC4 | User Umum | Lihat dashboard statistik data listing |
+| UC5 | Developer | Lihat overview sistem (backend, database, model, ETL) |
+| UC6 | Developer | Upload dataset CSV |
+| UC7 | Developer | Pilih mode Update (append) atau Replace (ganti semua) |
+| UC8 | Developer | Jalankan ETL dengan validasi skema dan quality check |
+| UC9 | Developer | Lihat riwayat ETL |
+| UC10 | Developer | Lihat model dan metrik per split |
+| UC11 | Developer | Uji prediksi dan SHAP pada playground |
+| UC12 | Developer | Jelajahi API melalui Swagger UI |
+
+### 4.2.2 Karakteristik Pengguna
+
+Sistem melayani dua jenis pengguna dengan kebutuhan yang berbeda.
+
+| Pengguna | Deskripsi | Kebutuhan utama |
+|---|---|---|
+| User Umum | Pengguna publik yang ingin mengetahui estimasi harga mobil bekas | Input data kendaraan, estimasi harga, penjelasan faktor, dan statistik data |
+| Developer | Pengguna teknis yang mengelola sistem | Overview sistem, upload dataset, ETL, katalog model, playground, dan akses API |
+
+User Portal dirancang untuk pengguna tanpa latar teknis: semua angka berasal dari
+API, label hasil disebut sebagai estimasi model dan bukan harga pasti, serta
+antarmuka *keyboard-only friendly*. Developer Portal dirancang untuk kebutuhan
+teknis dan dipisahkan pada port *loopback*.
+
+### 4.2.3 Batasan Produk Dikembangkan
+
+Batasan berikut ditetapkan agar ruang lingkup *proof-of-concept* tetap
+terkendali:
+
+- Model tunggal (XGBoost). Benchmarking multi-model seperti Random Forest atau
+  LightGBM tidak termasuk.
+- Penjelasan memakai Tree SHAP native, bukan LIME.
+- Training bersifat offline dan manual melalui `ml/scripts/`, tanpa endpoint
+  auto-retraining dan tanpa auto-deploy model.
+- Tidak ada deteksi *concept drift* atau *data drift*.
+- Tidak ada rekomendasi berbasis MCDM dan tidak ada scraping real-time.
+- Tidak ada autentikasi atau otorisasi kompleks.
+- Portal tidak mengeksekusi kode arbitrer.
+
+## 4.3 Requirements Pengembangan Produk
+
+### 4.3.1 Hardware
+
+Kebutuhan perangkat keras untuk menjalankan stack adalah mesin yang mendukung
+Docker Engine dan memiliki sumber daya memadai untuk menjalankan lima kontainer
+(nginx, frontend, backend, postgres, pgadmin) sekaligus memuat model XGBoost ke
+memori. *[perlu dilengkapi: spesifikasi minimum dan yang direkomendasikan,
+misalnya RAM dan penyimpanan]*
+
+### 4.3.2 Software
+
+| Kategori | Perangkat lunak | Fungsi |
+|---|---|---|
+| Bahasa | Python 3.11+, JavaScript/Node.js | Backend, ML, dan frontend |
+| Backend | FastAPI, Uvicorn, Pydantic | API dan validasi |
+| Frontend | ReactJS (Vite multi-page), Tailwind CSS | Antarmuka dua portal |
+| ML | XGBoost, pandas, NumPy, scikit-learn, Joblib, Pytest | Training, inference, dan pengujian |
+| Basis data | PostgreSQL 16, SQLAlchemy 2.0, pgAdmin 4 | Penyimpanan dan administrasi |
+| Infrastruktur | Nginx Alpine, Docker Engine, Docker Compose v2 | Reverse proxy dan kontainerisasi |
+
+### 4.3.3 Functional Requirement
+
+Tabel 4.2 Functional Requirement
+
+| Kode | Kebutuhan fungsional | Sumber |
+|---|---|---|
+| FR-01 | Sistem memvalidasi input prediksi (`brand`, `brand_type`, `machine_type`, `location`, `year`, `km_1`, `km_2`). | `POST /predictions` |
+| FR-02 | Sistem menghitung estimasi harga memakai XGBoost dan mengembalikan `model_version` serta `currency`. | `POST /predictions` |
+| FR-03 | Sistem mengembalikan penjelasan SHAP per fitur dalam bentuk `base_value` dan daftar `shap_value`. | `POST /predictions` |
+| FR-04 | Sistem menyimpan log prediksi (`input_payload` dan `shap_payload`) ke PostgreSQL secara *best-effort*. | `POST /predictions` |
+| FR-05 | Sistem menampilkan detail prediksi berdasarkan `prediction_id`. | `GET /predictions/{id}` |
+| FR-06 | Sistem menampilkan metadata model aktif beserta metrik per split. | `GET /models/active` |
+| FR-07 | Sistem menampilkan katalog seluruh versi model dan metriknya. | `GET /models` |
+| FR-08 | Sistem memvalidasi dan memproses upload CSV dengan mode Update atau Replace. | `POST /datasets/upload` |
+| FR-09 | Sistem menyediakan daftar dataset dan riwayat job ETL. | `GET /datasets`, `GET /datasets/{id}`, `GET /etl/jobs` |
+| FR-10 | Sistem menyediakan overview diagnostik untuk Developer Portal. | `GET /developer/overview` |
+| FR-11 | Sistem menyediakan statistik agregat listing untuk dashboard. | `GET /stats/dataset` |
+| FR-12 | Sistem menyediakan endpoint kesehatan yang melaporkan kesiapan model. | `GET /health` |
+| FR-13 | User Portal menampilkan formulir, kartu hasil estimasi, dan visual SHAP. | Frontend user |
+| FR-14 | Developer Portal menyediakan enam modul (overview, datasets, ETL, models, playground, API explorer). | Frontend developer |
+
+### 4.3.4 Non-Functional Requirement
+
+Tabel 4.3 Non-Functional Requirement
+
+| Kode | Kebutuhan non-fungsional |
+|---|---|
+| NFR-01 | Reproducibility: training memakai random seed 42, membagi data 80/20, dan menyimpan konfigurasi pada artefak terversi. |
+| NFR-02 | Validasi batas: `1930 <= year <= 2026`, `0 <= km <= 1.000.000`, dan harga hasil prediksi tidak boleh negatif (dapat diubah via env `MIN_YEAR`, `MAX_YEAR`, `MAX_KM`). |
+| NFR-03 | Performa: inference dibatasi timeout `INFERENCE_TIMEOUT_S` (respons 504 bila terlampaui). |
+| NFR-04 | Efisiensi: model dan preprocessor dimuat sekali saat startup, tidak reload per request. |
+| NFR-05 | Keamanan jaringan: PostgreSQL tidak diekspos ke host, Developer Portal hanya di-*bind* ke `127.0.0.1`, dan Nginx memblokir akses silang antar portal (HTTP 404). |
+| NFR-06 | Isolasi rilis: bundle Developer tidak pernah masuk ke bundle publik; unggahan diproses *streaming* tanpa memuat seluruh file ke RAM. |
+| NFR-07 | Usability: antarmuka responsif pada breakpoint 768px, *keyboard-only friendly*, kontras WCAG AA, dan tanpa karakter emoji. |
+| NFR-08 | Observability: prediksi dicatat ke database secara *best-effort* tanpa menghambat respons pengguna. |
+| NFR-09 | Portabilitas: seluruh layanan berjalan dengan `docker compose up` dan konfigurasi bergantung pada variabel `.env`. |
+| NFR-10 | Keandalan artefak: model di-mount ke backend sebagai volume *read-only*. |
+
+## 4.4 Solusi Ditawarkan
+
+### 4.4.1 Solusi 1
+
+Solusi yang diusulkan adalah sistem prediksi harga mobil bekas berbasis XGBoost
+dengan *explainability* native, dibungkus sebagai aplikasi web dua portal.
+
+- Model memakai XGBoost dengan dukungan kategori native
+  (`enable_categorical=true`). Empat fitur kategorikal, termasuk `brand_type`
+  berkardinalitas tinggi (2.002 nilai), dipertahankan sebagai
+  `pandas.Categorical` tanpa One-Hot Encoding.
+- Penjelasan memakai kontribusi pohon native XGBoost
+  `Booster.predict(pred_contribs=True)` yang diagregasi kembali ke enam fitur
+  semantik.
+- Backend memakai FastAPI dengan arsitektur berlapis dan pola repository.
+  Frontend memakai ReactJS sebagai *presentation layer* saja.
+- Dua portal dipisahkan: User Portal (publik) dan Developer Portal (*loopback*)
+  yang menangani dataset, ETL, model, dan API.
+- Seluruh layanan dikontainerisasi dengan Docker Compose dan basis data
+  PostgreSQL menyimpan metadata dataset, riwayat ETL, serta log prediksi.
+
+### 4.4.2 Proses Pemilihan Solusi
+
+Beberapa keputusan teknis diambil dengan membandingkan alternatif. Tabel 4.4
+merangkumnya.
+
+Tabel 4.4 Perbandingan alternatif dan alasan pemilihan
+
+| Aspek | Alternatif | Dipilih | Alasan |
+|---|---|---|---|
+| Encoding kategorikal | One-Hot Encoding, Ordinal Encoding, native `pandas.Categorical` | Native `pandas.Categorical` | `brand_type` berkardinalitas 2.002 nilai, sehingga One-Hot meledakkan dimensi dan Ordinal menimbulkan distorsi serta risiko leakage |
+| Explainability | Library `shap`, kontribusi pohon native XGBoost | Kontribusi native `pred_contribs=True` | Memenuhi aditivitas `base_value + sum(shap) = prediksi`, berjalan dalam orde milidetik, dan tidak butuh library `shap` saat inference |
+| Representasi kilometer | Pakai `KM_1` dan `KM_2`, pakai salah satu | Pakai `km_1` | `KM_1` dan `KM_2` berkorelasi 0,999 sehingga redundan |
+| Jumlah portal | Satu aplikasi gabungan, dua portal terpisah | Dua portal terpisah | Memisahkan fungsi publik dan fungsi teknis, dengan Developer Portal hanya dapat diakses dari loopback |
+| Retraining | Otomatis via endpoint, offline manual | Offline manual | Ruang lingkup CP, sekaligus menjaga artefak produksi tidak tertimpa tanpa sengaja |
+| Kolom teks mentah | Dipakai sebagai fitur, dibuang | Dibuang | Menjaga scope dan mencegah leakage |
+
+### 4.4.3 Disain Produk Diusulkan
+
+Desain produk memakai arsitektur berlapis yang memisahkan presentasi, gateway,
+service, ML, dan akses data. Gambar 4.3 menampilkan lapisan tersebut.
+
+```mermaid
+flowchart TB
+    subgraph P["Presentation Layer (frontend/)"]
+        UP["User Portal\nindex.html"]
+        DP["Developer Portal\ndeveloper.html"]
+    end
+    subgraph I["Ingress Layer (infra/nginx/)"]
+        N80["Nginx :80 (publik)"]
+        N8081["Nginx :8081 (loopback)"]
+    end
+    subgraph G["API Gateway (backend/app/api, schemas)"]
+        RT["Route Handlers\nhealth/prediction/model/dataset/etl/developer/stats"]
+        SC["Pydantic Schemas"]
+    end
+    subgraph S["Service Layer (backend/app/services)"]
+        MM["ModelManager"]
+        PS["PredictionService"]
+        ES["ETLService"]
+        SS["StatsService"]
+    end
+    subgraph M["ML and XAI (backend/app/ml)"]
+        CP["CategoricalPreprocessor"]
+        BM["XGBoost Booster"]
+        SH["Tree SHAP native"]
+    end
+    subgraph R["Repository and Persistence"]
+        REP["Repositories"]
+        PG[("PostgreSQL 16\n6 tabel")]
+    end
+    UP --> N80 --> RT
+    DP --> N8081 --> RT
+    RT --> SC
+    RT --> MM
+    RT --> PS
+    RT --> ES
+    RT --> SS
+    PS --> CP --> BM --> SH
+    ES --> REP
+    PS --> REP
+    REP --> PG
+```
+
+Gambar 4.3 Desain arsitektur berlapis produk
+
+Basis data terdiri dari enam tabel sesuai ERD. Relasi antar tabel ditampilkan
+pada Gambar 4.4.
+
+```mermaid
+erDiagram
+    DATASETS ||--o{ ETL_JOBS : "memiliki"
+    DATASETS ||--o{ LISTINGS : "memuat"
+    MODEL_VERSIONS ||--o{ MODEL_METRICS : "memiliki"
+    MODEL_VERSIONS ||--o{ PREDICTIONS : "menghasilkan"
+
+    DATASETS {
+        int id
+        string name
+        string status
+        int valid_rows
+        int rejected_rows
+    }
+    ETL_JOBS {
+        int id
+        int dataset_id
+        string mode
+        string status
+        int total_rows
+        int valid_rows
+        int rejected_rows
+    }
+    LISTINGS {
+        int id
+        int dataset_id
+        string brand
+        string brand_type
+        string machine_type
+        string location
+        int year
+        int km_1
+        int km_2
+        numeric price
+    }
+    MODEL_VERSIONS {
+        int id
+        string version
+        bool is_active
+        string artifact_path
+    }
+    MODEL_METRICS {
+        int id
+        int model_version_id
+        string split
+        numeric mae
+        numeric rmse
+        numeric mape
+        numeric r2
+    }
+    PREDICTIONS {
+        int id
+        string prediction_id
+        int model_version_id
+        jsonb input_payload
+        jsonb shap_payload
+        numeric predicted_price
+    }
+```
+
+Gambar 4.4 ERD enam tabel basis data OtoValue
+
+Kontrak API memakai base URL `/api/v1` dengan endpoint utama seperti pada
+Tabel 4.5.
+
+Tabel 4.5 Ringkasan kontrak API
+
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| GET | `/health` | Status backend dan model |
+| POST | `/predictions` | Estimasi harga, penjelasan, dan `model_version` |
+| GET | `/predictions/{id}` | Detail log prediksi |
+| GET | `/models/active` | Model aktif dan metrik |
+| GET | `/models` | Katalog seluruh versi model |
+| POST | `/datasets/upload` | Validasi dan ETL CSV (multipart) |
+| GET | `/datasets`, `/datasets/{id}` | Metadata dataset dan riwayat ETL |
+| GET | `/etl/jobs` | Riwayat ETL |
+| GET | `/developer/overview` | Overview sistem Developer Portal |
+| GET | `/stats/dataset` | Statistik listing dan histogram |
+
+### 4.4.5 Rencana Implementasi dan Pengujian
+
+#### Gantt Chart
+
+*[Diisi manual.]*
+
+#### Metode Pengujian
+
+Pengujian memakai lima suite terpusat di direktori `testing/`. Setiap suite
+dijalankan berurutan dari 0 sampai 5.
+
+| Suite | Fokus | Keluaran kunci |
+|---|---|---|
+| 1. Data Validation | Validasi dataset dan aturan ETL | 22.679 baris, 21.553 Bekas/Used, korelasi KM 0,998979 |
+| 2. Unit Testing | Pytest backend, kompilasi statis, utilitas | 17 passed, `compileall` bersih |
+| 3. Integration Testing | Integrasi REST live dan isolasi Nginx | health/predict/models/ETL/stats 200, isolasi port terkonfirmasi |
+| 4. Functional Testing | Build frontend dan matriks use case | build dua bundle terisolasi, 0 emoji, UC1-UC12 valid |
+| 5. Model dan XAI Validation | Integritas artefak dan kebenaran SHAP | retrain R2=0.9364, residu <= Rp116, latensi <= 14.5 ms |
+
+## 4.5 Implementasi
+
+### 4.5.1 Aplikasi Dokumen
+
+Dokumen dan berkas yang menyertai produk:
+
+- `README.md` sebagai dokumentasi utama (arsitektur, kontrak API, hasil
+  pengujian).
+- `AGENTS.md` sebagai kontrak teknis dan aturan pengembangan.
+- `.env.example` sebagai contoh konfigurasi environment.
+- `docker-compose.yml` sebagai definisi stack lima layanan.
+- Direktori `artifacts/models/xgboost/xgb-v1/` sebagai paket artefak model.
+
+*[perlu dilengkapi: lampiran dokumen aplikasi, misalnya tangkapan layar
+dokumentasi API atau berkas keluaran lain]*
+
+### 4.5.2 Tampilan Produk
+
+User Portal menyediakan tiga halaman: Beranda (penjelasan sistem dan metrik model
+dari API), Data (dashboard statistik listing dengan histogram harga, transmisi,
+merek, lokasi, dan tahun), dan Hitung estimasi (formulir, kartu hasil, dan grafik
+SHAP). Developer Portal menyediakan enam modul: Business/System Overview, Dataset
+Management, ETL Management, Model Management, Prediction Playground, dan API
+Explorer. Kedua portal memakai komponen visual yang sama (`VehicleForm`,
+`PredictionCard`, `ShapWaterfall`, `ShapBarChart`, `LoadingState`).
+
+*[perlu dilengkapi: tangkapan layar antarmuka User Portal dan Developer Portal]*
+
+### 4.5.3 Pengujian Produk
+
+Pengujian resmi dijalankan pada 13 Oktober 2026 (commit `e96a380`) dengan verdict
+GO: 6 dari 6 kategori PASS, tanpa FAIL dan tanpa SKIPPED. Tabel 4.6 merangkum
+hasilnya.
+
+Tabel 4.6 Hasil pengujian produk (13 Oktober 2026)
+
+| Kategori | Status | Bukti kunci |
+|---|:---:|---|
+| 0. Pre-task | PASS | Working tree bersih, kontrak tervalidasi |
+| 1. Data Validation | PASS | 22.679 baris, 21.553 Bekas/Used, 0 null/duplikat, 8 kasus ETL lolos |
+| 2. Unit Testing | PASS | 17 passed (1,29 s), `compileall` bersih |
+| 3. Integration | PASS | health/predict/models/ETL/stats 200, isolasi port terkonfirmasi |
+| 4. Functional | PASS | Build 1,37 s, chunk developer terpisah, 0 emoji, UC1-UC12 valid |
+| 5. Model dan XAI | PASS | 6 file utuh, retrain R2=0,9364 dan MAPE=8,19%, residu <= Rp116, latensi <= 14,5 ms |
+
+Pipeline training yang dipakai produk menghasilkan metrik test pada Tabel 4.7.
+
+Tabel 4.7 Metrik model `xgb-v1` pada test set
+
+| MAE | RMSE | MAPE | R2 |
+|---:|---:|---:|---:|
+| 25.446.042 | 52.997.228 | 8,40% | 0,9371 |
