@@ -1006,7 +1006,7 @@ flowchart TD
     ValidateClient -- Valid --> SendAPI[Kirim Request POST /api/v1/predictions]
     SendAPI --> ValidateServer{Validasi Skema Pydantic di Backend}
     ValidateServer -- Tidak Valid --> Return422[Kembalikan Error 422 Unprocessable Entity]
-    Return422 --> ShowUIError[Tampilkan Notifikasi Galat pada Antarmuka]
+    Return422 --> ShowUIError[Tampilkan Notifikasi Error pada Antarmuka]
     ValidateServer -- Valid --> Preprocess[Transformasi Kategorikal Native dan Normalisasi Fitur]
     Preprocess --> PredictXGB[Eksekusi Prediksi XGBoost Regressor]
     PredictXGB --> CalcSHAP[Kalkulasi Nilai Kontribusi Pohon Tree SHAP Native]
