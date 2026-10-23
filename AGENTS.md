@@ -52,7 +52,7 @@ Deliverable end-to-end (§1): dataset + metadata model di PostgreSQL, preprocess
 
 | Documentation File | Purpose & Contents |
 | --- | --- |
-| [dataset.csv](dataset.csv) | **Raw Dataset**: 22.679 rows, 14 columns, target `price`; categorical `brand`, `brand_type`, `machine_type`, `location`, `listing__type`; numeric `year`, `KM_1`, `KM_2`; text `item`, `ellipsize`, `listing__excerpt`; tanpa missing value. |
+| [dataset.csv](dataset.csv) | **Raw Dataset**: 22.679 rows, 14 columns, target `price`; categorical `brand`, `brand_type`, `machine_type`, `location`, `listing__type`; numeric `year`, `KM_1`, `KM_2`; text `item`, `ellipsize`, `listing__excerpt`; tanpa missing value; dataset sekunder hasil scraping portal Mobil123 (2025) dari [aliabdurrahman10/Used-Car-Analysis-in-Indonesia](https://github.com/aliabdurrahman10/Used-Car-Analysis-in-Indonesia). |
 | [testing/](testing/) (`run_all.py` + `1_data_validation.py` s.d. `5_model_xai_validation.py`, panduan di [README Fase 5](README.md#fase-5-integrasi-dan-pengujian)) | **Testing Suite Modular**: 5 skrip flat tanpa subdirektori. Metode, hasil, dan matriks XAI WAJIB terpusat di README Fase 5 — file laporan terpisah dilarang. |
 
 ---
@@ -170,7 +170,7 @@ dan eksekusi arbitrary code dari portal.
 
 ## Dataset Decisions
 
-Dataset awal berisi 22.679 baris dan 14 kolom dengan target `price`. Eksperimen
+Dataset awal berisi 22.679 baris dan 14 kolom dengan target `price` (dataset sekunder hasil scraping portal Mobil123 tahun 2025 dari repositori [aliabdurrahman10/Used-Car-Analysis-in-Indonesia](https://github.com/aliabdurrahman10/Used-Car-Analysis-in-Indonesia)). Eksperimen
 utama hanya memakai listing `Bekas` dan `Used` sebanyak 21.553 baris. `Unnamed: 0`
 adalah index, `KM_1` dipakai sebagai representasi kilometer utama karena `KM_1`
 dan `KM_2` redundan, dan kolom teks mentah tidak dipakai untuk baseline.

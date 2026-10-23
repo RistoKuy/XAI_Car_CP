@@ -1089,7 +1089,9 @@ tetap terkendali dan fokus pada tujuan penelitian:
 4. Sistem tidak mencakup deteksi pergeseran konsep data (*concept drift*) atau
    pergeseran distribusi (*data drift*).
 5. Sistem tidak menyediakan modul rekomendasi multikriteria (MCDM) untuk perangkingan
-   kendaraan dan tidak melakukan penarikan data (*scraping*) langsung dari web.
+   kendaraan dan tidak melakukan penarikan data (*scraping*) langsung dari web. Data yang
+   digunakan merupakan dataset sekunder hasil *scraping* website Mobil123 tahun 2025 yang
+   bersumber dari repositori GitHub [aliabdurrahman10/Used-Car-Analysis-in-Indonesia](https://github.com/aliabdurrahman10/Used-Car-Analysis-in-Indonesia).
 6. Sistem tidak menerapkan sistem autentikasi pengguna bertingkat yang kompleks
    (RBAC), karena prototipe difungsikan untuk demonstrasi Capstone Project dengan
    pengamanan akses pengembang melalui isolasi jaringan lokal (*loopback*).
@@ -1444,6 +1446,10 @@ Tahap persiapan data dan pemodelan machine learning dirancang secara terstruktur
 mengikuti temuan eksplorasi data mentah dan kaidah reproduksibilitas ilmiah.
 
 #### 1. Karakteristik Dataset dan Keputusan Pengolahan Data
+
+**Disclaimer Sumber Dataset**:
+Dataset mentah `dataset.csv` yang digunakan dalam penelitian dan pengembangan sistem ini merupakan **dataset sekunder** hasil penarikan data (*web scraping*) pada portal jual-beli mobil **Mobil123** pada tahun 2025. Dataset ini bersumber dari repositori terbuka https://github.com/aliabdurrahman10/Used-Car-Analysis-in-Indonesia oleh Ali Abdurrahman. Sistem OtoValue memanfaatkan dataset sekunder terkurasi ini untuk pelatihan, validasi, dan pengujian model, serta tidak melakukan aktivitas *scraping* secara langsung (*real-time scraping*) terhadap situs web pihak ketiga.
+
 Dataset mentah `dataset.csv` berisi 22.679 baris dan 14 kolom dengan target harga
 (`price`) tanpa nilai yang hilang (*missing value*). Analisis karakteristik data
 menghasilkan keputusan sebagai berikut:
@@ -1552,8 +1558,8 @@ secara tersentralisasi pada repositori publik GitHub:
 
 #### Dokumen dan Berkas Pendukung Repositori
 Repositori proyek memuat berkas-berkas utama yang mendefinisikan keseluruhan sistem:
-- `README.md`: Berkas dokumentasi utama yang memuat panduan komprehensif, arsitektur,
-  spesifikasi teknis, dan laporan pengujian produk.
+- `README.md`: Berkas dokumentasi utama yang memuat panduan komprehensif, arsitektur, spesifikasi teknis, dan laporan pengujian produk.
+- `dataset.csv`: Berkas dataset sekunder mentah berisi 22.679 baris data pasar mobil bekas hasil *scraping* portal Mobil123 pada tahun 2025 dari repositori https://github.com/aliabdurrahman10/Used-Car-Analysis-in-Indonesia.
 - `AGENTS.md`: Dokumen kontrak teknis, aturan rekayasa, dan panduan standar eksekusi.
 - `docker-compose.yml`: Berkas konfigurasi orkestrasi multi-kontainer Docker untuk lima
   layanan utama.
