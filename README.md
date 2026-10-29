@@ -1033,7 +1033,7 @@ flowchart TD
     ClickUpload --> SendUpload[Kirim Permintaan POST /api/v1/datasets/upload]
     SendUpload --> StreamParse[Streaming Parse Baris CSV per Chunk Data]
     StreamParse --> ValidateHeader{Header Wajib Sesuai Skema?}
-    ValidateHeader -- Tidak --> Reject400[Tolak Berkas dan Kembalikan Respons Galat 400]
+    ValidateHeader -- Tidak --> Reject400[Tolak Berkas dan Kembalikan Respons Error 400]
     Reject400 --> ShowETLError[Tampilkan Status Gagal pada Antarmuka Pengembang]
     ValidateHeader -- Ya --> FilterRows[Filter Baris Listing Bertipe Bekas dan Used]
     FilterRows --> CheckMode{Evaluasi Mode Ingestion}
@@ -1802,7 +1802,7 @@ Gambar 4.18 Dokumentasi interaktif Swagger UI pada `/docs`
   menggunakan ikon SVG inline dan lencana tipografi yang bersih.
 - *Aksesibilitas Tinggi*: Memenuhi rasio kontras visual standar WCAG AA, mendukung
   navigasi penuh menggunakan papan ketik (*keyboard-friendly*), serta menyediakan
-  status penanganan formulir yang informatif (keadaan kosong, pemuatan, dan galat).
+  status penanganan formulir yang informatif (keadaan kosong, pemuatan, dan error).
 
 ### 4.5.3 Pengujian Produk
 
