@@ -536,6 +536,7 @@ data/processed/            # hasil filter (regenerable, di-ignore git)
 artifacts/models/          # artifact versioned xgb-v1
 infra/nginx/               # reverse proxy dua port (80 publik + 8081 loopback)
 infra/pgadmin/             # servers.json praregistrasi
+docs/figures/              # aset gambar laporan: bab4/*.png (diagram) + views/**/*.jpeg
 docker-compose.yml
 .env.example
 ```
@@ -1570,6 +1571,11 @@ Repositori proyek memuat berkas-berkas utama yang mendefinisikan keseluruhan sis
   metrik evaluasi.
 - Direktori `testing/`: Skrip orkestrator dan lima suite pengujian otomatis (`run_all.py`
   serta `1_data_validation.py` sampai `5_model_xai_validation.py`).
+- Direktori `docs/figures/`: Aset gambar laporan. `bab4/` menyimpan 8 diagram BAB IV
+  sebagai PNG RGBA transparan (Gambar 4.1-4.8, hasil render `@mermaid-js/mermaid-cli`
+  dengan `-b transparent -s 3`), sedangkan `views/` menyimpan 10 tangkapan layar
+  antarmuka (Gambar 4.9-4.18) yang dilampirkan pada §4.5.2. Berkas di dalamnya adalah
+  aset biner, bukan dokumentasi naratif.
 
 #### Struktur Direktori Codebase
 Organisasi berkas pada repositori dirancang secara modular dan datar:
@@ -1603,6 +1609,7 @@ data/processed/            # Tempat penyimpanan dataset bersih terfilter (diabai
 artifacts/models/          # Direktori registri artefak model terversi (xgb-v1)
 infra/nginx/               # Konfigurasi Nginx reverse proxy dua port (:80 dan :8081)
 infra/pgadmin/             # Berkas prapendaftaran koneksi servers.json
+docs/figures/              # Aset gambar laporan (bab4/ PNG transparan, views/ tangkapan layar)
 docker-compose.yml         # Konfigurasi orkestrasi kontainer Docker
 .env.example               # Templat parameter variabel lingkungan
 ```
@@ -1707,9 +1714,8 @@ of Concerns*) melalui enam lapisan arsitektur utama:
 ### 4.5.2 Tampilan Produk
 
 Antarmuka produk dirancang untuk memberikan pengalaman navigasi yang intuitif,
-transparan, dan informatif bagi masing-masing kelompok pengguna.
-
-[Gambar perlu diinput manual di laporan Capstone Project]
+transparan, dan informatif bagi masing-masing kelompok pengguna. Tangkapan layar
+setiap halaman tersimpan di `docs/figures/views/` dan dilampirkan pada bagian ini.
 
 #### 1. User Portal (Port 80)
 User Portal melayani kebutuhan publik melalui tiga halaman utama:
@@ -1727,6 +1733,22 @@ User Portal melayani kebutuhan publik melalui tiga halaman utama:
   harga dalam format Rupiah, disertai visualisasi penjelasan kontribusi fitur
   menggunakan grafik *waterfall* dan grafik batang interaktif yang membedakan pengaruh
   penambah harga (warna hijau/positif) dan pengurang harga (warna merah/negatif).
+
+![Halaman Beranda User Portal](docs/figures/views/beranda.jpeg)
+
+Gambar 4.9 Halaman Beranda User Portal
+
+![Halaman Data Dashboard User Portal](docs/figures/views/data.jpeg)
+
+Gambar 4.10 Halaman Data Dashboard User Portal
+
+![Formulir Hitung Estimasi User Portal](docs/figures/views/hitung.jpeg)
+
+Gambar 4.11 Formulir Hitung Estimasi User Portal
+
+![Hasil Estimasi Harga dan Visualisasi Tree SHAP](docs/figures/views/hitung_hasil.jpeg)
+
+Gambar 4.12 Hasil estimasi harga dan visualisasi kontribusi Tree SHAP
 
 #### 2. Developer Portal (Port 8081)
 Developer Portal berfungsi sebagai konsol pemantauan dan pengelolaan teknis dengan
@@ -1747,6 +1769,30 @@ enam modul terpisah:
   seragam dengan User Portal.
 - **API Explorer**: Menyediakan katalog endpoint REST sistem yang terhubung langsung
   ke antarmuka dokumentasi interaktif Swagger UI (`/docs`).
+
+![Modul Business/System Overview Developer Portal](docs/figures/views/admin/overview.jpeg)
+
+Gambar 4.13 Modul Business/System Overview Developer Portal
+
+![Modul Dataset Management Developer Portal](docs/figures/views/admin/dataset_management.jpeg)
+
+Gambar 4.14 Modul Dataset Management Developer Portal
+
+![Modul ETL Management Developer Portal](docs/figures/views/admin/riwayat_etl.jpeg)
+
+Gambar 4.15 Modul ETL Management Developer Portal (keadaan kosong sebelum ETL pertama)
+
+![Modul Model Management Developer Portal](docs/figures/views/admin/model.jpeg)
+
+Gambar 4.16 Modul Model Management Developer Portal
+
+![Modul API Explorer Developer Portal](docs/figures/views/admin/api_exp.jpeg)
+
+Gambar 4.17 Modul API Explorer Developer Portal
+
+![Swagger UI pada /docs](docs/figures/views/swagger.jpeg)
+
+Gambar 4.18 Dokumentasi interaktif Swagger UI pada `/docs`
 
 #### 3. Standar Desain dan Aksesibilitas
 - *Adaptasi Responsif*: Antarmuka secara dinamis menyesuaikan diri terhadap ukuran
