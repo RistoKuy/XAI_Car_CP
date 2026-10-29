@@ -8,9 +8,9 @@ explanation + dataset/ETL/model management, dua portal ReactJS terisolasi
 (User Portal publik + Developer Portal loopback-only), seluruh stack
 containerized dengan Docker.
 
-## Metodologi (SDLC Waterfall)
+## Metodologi
 
-Dokumentasi ini disusun mengikuti 7 fase Waterfall. Urutan fase = urutan baca.
+Dokumentasi ini disusun dalam 7 fase pengembangan. Urutan fase = urutan baca.
 
 | Fase | Cakupan dokumentasi |
 |---|---|
@@ -742,11 +742,10 @@ ditunda ke TA.
 
 ## 3.1 Tahapan Pengembangan
 
-Pengembangan OtoValue memakai pendekatan *System Development Life Cycle* (SDLC)
-model *Waterfall*. Model ini dipilih karena kebutuhan sistem sudah terdefinisi
-sejak awal, yaitu menghasilkan estimasi harga mobil bekas sekaligus menjelaskan
-faktor yang mempengaruhinya. Tahapan berjalan berurutan dan keluaran setiap fase
-menjadi masukan fase berikutnya. Pengembangan dibagi menjadi tujuh fase.
+Pengembangan OtoValue dibagi menjadi tujuh fase berurutan. Kebutuhan sistem sudah
+terdefinisi sejak awal, yaitu menghasilkan estimasi harga mobil bekas sekaligus
+menjelaskan faktor yang mempengaruhinya, sehingga keluaran setiap fase menjadi
+masukan fase berikutnya.
 
 **Fase 1: Analisis Kebutuhan.** Memetakan prinsip estimasi harga dan penjelasan
 SHAP, mengidentifikasi dua aktor (User Umum dan Developer), mendefinisikan 12
@@ -791,7 +790,7 @@ flowchart TB
     F1 --> F2 --> F3 --> F4 --> F5 --> F6 --> F7
 ```
 
-Gambar 3.1 Diagram alur pengembangan SDLC Waterfall OtoValue
+Gambar 3.1 Diagram alur tahapan pengembangan OtoValue
 
 Setiap fase memakai metode dan algoritma yang berbeda. Pemetaannya ada pada
 Tabel 3.1.
@@ -1517,7 +1516,7 @@ jauh di bawah batas toleransi deviasi yang ditetapkan yaitu Rp1.000.
 ### 4.4.5 Rencana Implementasi dan Pengujian
 
 #### Gantt Chart Pelaksanaan Proyek
-Pengembangan sistem OtoValue dilaksanakan melalui tujuh fase Waterfall dengan
+Pengembangan sistem OtoValue dilaksanakan melalui tujuh fase dengan
 estimasi rentang waktu pengerjaan selama lima minggu, sebagaimana dirangkum pada
 Tabel 4.9.
 
