@@ -997,62 +997,51 @@ harga oleh pengguna umum (Gambar 4.3) dan alur pemrosesan data oleh pengembang
 
 ```mermaid
 flowchart TD
-    StartUser([Mulai]) --> OpenPage[Buka Menu Hitung Estimasi]
-    OpenPage --> InputData[Pilih Merek, Tipe, Transmisi, Lokasi, Tahun, dan Jarak Tempuh]
-    InputData --> SubmitForm[Klik Tombol Hitung Estimasi]
-    SubmitForm --> ValidateClient{Validasi Form di Sisi Klien}
-    ValidateClient -- Tidak Valid --> ShowClientError[Tampilkan Pesan Koreksi Input]
-    ShowClientError --> InputData
-    ValidateClient -- Valid --> SendAPI[Kirim Request POST /api/v1/predictions]
-    SendAPI --> ValidateServer{Validasi Skema Pydantic di Backend}
-    ValidateServer -- Tidak Valid --> Return422[Kembalikan Error 422 Unprocessable Entity]
-    Return422 --> ShowUIError[Tampilkan Notifikasi Error pada Antarmuka]
-    ValidateServer -- Valid --> Preprocess[Transformasi Kategorikal Native dan Normalisasi Fitur]
-    Preprocess --> PredictXGB[Eksekusi Prediksi XGBoost Regressor]
-    PredictXGB --> CalcSHAP[Kalkulasi Nilai Kontribusi Pohon Tree SHAP Native]
-    CalcSHAP --> LogDB[Simpan Log Prediksi ke Database PostgreSQL]
-    LogDB --> ReturnJSON[Kembalikan Respons JSON Estimasi dan Nilai SHAP]
-    ReturnJSON --> RenderUI[Tampilkan Kartu Hasil Estimasi dan Grafik Kontribusi SHAP]
-    RenderUI --> EndUser([Selesai])
+    StartUser([Mulai]) --> InputData[Isi Data Mobil]
+    InputData --> SubmitForm[Klik Hitung Estimasi]
+    SubmitForm --> CekInput{Data Lengkap?}
+    CekInput -- Belum --> PesanInput[Tampilkan Pesan Perbaikan]
+    PesanInput --> InputData
+    CekInput -- Ya --> HitungHarga[Model Menghitung Harga]
+    HitungHarga --> HitungSHAP[Hitung Penjelasan SHAP]
+    HitungSHAP --> SimpanLog[Simpan Riwayat Prediksi]
+    SimpanLog --> TampilHasil[Tampilkan Harga dan Penjelasan]
+    TampilHasil --> EndUser([Selesai])
 ```
 
 Gambar 4.3 Diagram aktivitas alur estimasi harga dan penjelasan SHAP
 
-Diagram aktivitas pada Gambar 4.3 memperlihatkan tahapan inferensi mulai dari
-pengisian formulir spesifikasi oleh pengguna, validasi data berlapis di sisi
-klien dan server, eksekusi estimasi berbasis XGBoost, kalkulasi kontribusi fitur
-secara lokal menggunakan Tree SHAP, pencatatan log audit ke basis data, hingga
-penyajian hasil akhir berupa kartu harga dan grafik visual.
+Diagram pada Gambar 4.3 menunjukkan alur pengguna: mengisi data mobil, menekan
+tombol hitung, lalu sistem memeriksa kelengkapan data. Bila data belum lengkap,
+pengguna diminta memperbaiki input. Bila lengkap, sistem menghitung estimasi
+harga, menyiapkan penjelasan faktor pembentuk harga, menyimpan riwayat, dan
+menampilkan hasilnya.
 
 ```mermaid
 flowchart TD
-    StartDev([Mulai]) --> OpenDev[Akses Developer Portal Port 8081]
-    OpenDev --> SelectMenu[Pilih Menu Dataset Management]
-    SelectMenu --> SelectFile[Pilih Berkas CSV dan Tentukan Mode Update atau Replace]
-    SelectFile --> ClickUpload[Klik Tombol Mulai ETL]
-    ClickUpload --> SendUpload[Kirim Permintaan POST /api/v1/datasets/upload]
-    SendUpload --> StreamParse[Streaming Parse Baris CSV per Chunk Data]
-    StreamParse --> ValidateHeader{Header Wajib Sesuai Skema?}
-    ValidateHeader -- Tidak --> Reject400[Tolak Berkas dan Kembalikan Respons Error 400]
-    Reject400 --> ShowETLError[Tampilkan Status Gagal pada Antarmuka Pengembang]
-    ValidateHeader -- Ya --> FilterRows[Filter Baris Listing Bertipe Bekas dan Used]
-    FilterRows --> CheckMode{Evaluasi Mode Ingestion}
-    CheckMode -- Replace --> TruncateOld[Kosongkan Data Lama pada Tabel Listings]
-    TruncateOld --> BatchInsert[Insert Batch Baris Valid ke Tabel Listings]
-    CheckMode -- Update --> BatchInsert
-    BatchInsert --> RecordLog[Catat Riwayat Eksekusi ke Tabel etl_jobs]
-    RecordLog --> ReturnSummary[Kembalikan Ringkasan Total, Valid, dan Ditolak]
-    ReturnSummary --> UpdateUI[Perbarui Indikator Kesiapan Data dan Tabel Riwayat ETL]
-    UpdateUI --> EndDev([Selesai])
+    StartDev([Mulai]) --> OpenDev[Buka Developer Portal]
+    OpenDev --> SelectFile[Pilih File CSV dan Mode Update atau Replace]
+    SelectFile --> ClickUpload[Klik Mulai ETL]
+    ClickUpload --> CekFile{File Valid?}
+    CekFile -- Tidak --> GagalUpload[Tampilkan Pesan Gagal]
+    GagalUpload --> EndDev([Selesai])
+    CekFile -- Ya --> SaringData[Saring Data Mobil Bekas]
+    SaringData --> CekMode{Mode Replace?}
+    CekMode -- Ya --> HapusLama[Hapus Data Lama]
+    CekMode -- Tidak --> SimpanData[Tambah Data Baru]
+    HapusLama --> SimpanData
+    SimpanData --> CatatLog[Catat Riwayat ETL]
+    CatatLog --> TampilRingkas[Tampilkan Ringkasan Hasil]
+    TampilRingkas --> EndDev
 ```
 
 Gambar 4.4 Diagram aktivitas alur upload dataset dan eksekusi ETL
 
-Diagram aktivitas pada Gambar 4.4 menunjukkan tata kelola dataset oleh pengembang
-melalui Developer Portal. Berkas CSV diproses secara *streaming* per *chunk*
-untuk menghemat alokasi memori, divalidasi kelengkapan kolomnya, disaring hanya
-untuk listing kendaraan bekas, kemudian dicatat ke basis data sesuai mode
-penambahan (*update*) atau penggantian total (*replace*).
+Diagram pada Gambar 4.4 menunjukkan alur pengembang: mengunggah file CSV dari
+Developer Portal, memilih mode **Update** (tambah data) atau **Replace** (ganti
+semua data). Sistem memeriksa keabsahan file, menyaring hanya data mobil bekas,
+menyimpan data, mencatat riwayat ETL, lalu menampilkan ringkasan hasil. File
+tidak valid ditolak dengan pesan kegagalan.
 
 ### 4.2.2 Karakteristik Pengguna
 
