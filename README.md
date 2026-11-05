@@ -99,59 +99,40 @@ auto-deploy model setelah training, code editor/eksekusi arbitrary code dari por
 ### 2.1 Ringkasan Topologi Sistem
 
 ```mermaid
-flowchart TB
-    subgraph Client[Client]
-        U[User Umum]
-        D[Developer]
-        FE[User Portal\nterang]
-        DEV[Developer Portal\ngelap + badge DEV]
+flowchart LR
+    subgraph Client["Client"]
+        direction TB
+        U(["User Umum"]) --> FE["User Portal\n(terang)"]
+        D(["Developer"]) --> DEV["Developer Portal\n(gelap + DEV)"]
     end
-    subgraph App[Application Layer]
-        N80[Nginx :80 publik]
-        N8081[Nginx :8081 loopback-only]
-        F[FastAPI]
-        V[Pydantic Validation]
-        S[Prediction Service]
-        X[XAI Service]
-        DM[Dataset Service]
-        ETL[ETL Engine]
-        MS[Model Service]
+
+    subgraph App["Application Layer"]
+        direction TB
+        NGX["Nginx Proxy\n(:80 / :8081)"]
+        API["FastAPI Backend\n(Gateway & Services)"]
+        NGX -->|"/api/*"| API
     end
-    subgraph ML[ML Layer]
-        P[Preprocessing Pipeline]
-        M[XGBoost Model]
-        SH[SHAP Explainer]
+
+    subgraph ML["ML & XAI Engine"]
+        direction TB
+        PRE["Preprocessing &\nXGBoost Model"]
+        XAI["Tree SHAP Engine\n(pred_contribs=True)"]
+        PRE --> XAI
     end
-    subgraph Data[Data Layer]
-        PG[(PostgreSQL)]
-        FS[/Model Artifact Volume/]
+
+    subgraph Data["Data Layer"]
+        direction TB
+        DB[("PostgreSQL 16\nDatabase")]
+        ART[/"Model Artifacts\n(Volume Read-Only)"/]
     end
-    U --> FE
-    D --> DEV
-    FE --> N80
-    DEV --> N8081
-    N80 -->|/api/*| F
-    N8081 -->|/api/*| F
-    F --> V
-    F --> S
-    F --> X
-    F --> DM
-    F --> ETL
-    F --> MS
-    S --> P
-    P --> M
-    S --> X
-    X --> SH
-    X --> M
-    X --> P
-    ETL --> PG
-    S --> PG
-    X --> PG
-    MS --> PG
-    MS --> FS
-    M --> FS
-    P --> FS
-    SH --> FS
+
+    FE --> NGX
+    DEV --> NGX
+
+    API --> PRE
+    API --> DB
+
+    ART -.->|Load| PRE
 ```
 
 ### 2.2 Dekomposisi Arsitektur Codebase (Layered Architecture)
@@ -941,18 +922,18 @@ flowchart LR
     U([User Umum])
     D([Developer])
     subgraph SYS[OtoValue]
-        UC1((UC1 Input Data Kendaraan))
-        UC2((UC2 Hitung Estimasi Harga))
-        UC3((UC3 Lihat Penjelasan SHAP))
-        UC4((UC4 Lihat Dashboard Data))
-        UC5((UC5 Lihat System Overview))
-        UC6((UC6 Upload Dataset CSV))
-        UC7((UC7 Pilih Mode Update / Replace))
-        UC8((UC8 Jalankan ETL + Validasi))
-        UC9((UC9 Lihat Riwayat ETL))
-        UC10((UC10 Lihat Model + Metrik))
-        UC11((UC11 Uji Prediction Playground))
-        UC12((UC12 Jelajahi API via Swagger))
+        UC1((Input Data Kendaraan))
+        UC2((Hitung Estimasi Harga))
+        UC3((Lihat Penjelasan SHAP))
+        UC4((Lihat Dashboard Data))
+        UC5((Lihat System Overview))
+        UC6((Upload Dataset CSV))
+        UC7((Pilih Mode Update / Replace))
+        UC8((Jalankan ETL + Validasi))
+        UC9((Lihat Riwayat ETL))
+        UC10((Lihat Model + Metrik))
+        UC11((Uji Prediction Playground))
+        UC12((Jelajahi API via Swagger))
     end
     U --> UC1
     UC1 -. include .-> UC2
@@ -1199,59 +1180,40 @@ keamanan web, layanan backend, engine pembelajaran mesin, serta basis data
 penyimpanan. Topologi arsitektur sistem digambarkan pada Gambar 4.5.
 
 ```mermaid
-flowchart TB
-    subgraph Client[Client Layer]
-        U[User Umum]
-        D[Developer]
-        FE["User Portal (Tema Terang)"]
-        DEV["Developer Portal (Tema Gelap + Badge DEV)"]
+flowchart LR
+    subgraph Client["Client Layer"]
+        direction TB
+        U(["User Umum"]) --> FE["User Portal\n(Port 80)"]
+        D(["Developer"]) --> DEV["Developer Portal\n(Port 8081)"]
     end
-    subgraph App[Application Layer]
-        N80["Nginx :80 (Publik)"]
-        N8081["Nginx :8081 (Loopback-Only)"]
-        F[FastAPI Backend]
-        V[Pydantic Validation]
-        S[Prediction Service]
-        X[XAI Service]
-        DM[Dataset Service]
-        ETL[ETL Engine]
-        MS[Model Service]
+
+    subgraph App["Application Layer"]
+        direction TB
+        NGX["Nginx Proxy\n(:80 / :8081)"]
+        API["FastAPI Backend\n(Gateway & Services)"]
+        NGX -->|"/api/*"| API
     end
-    subgraph ML[Machine Learning Layer]
-        P[Preprocessing Pipeline]
-        M[XGBoost Booster Model]
-        SH[Tree SHAP Explainer]
+
+    subgraph ML["Machine Learning & XAI"]
+        direction TB
+        PRE["Preprocessing &\nXGBoost Model"]
+        XAI["Tree SHAP Engine\n(pred_contribs=True)"]
+        PRE --> XAI
     end
-    subgraph Data[Data Layer]
-        PG[(PostgreSQL 16)]
-        FS[/Model Artifact Volume/]
+
+    subgraph Data["Data Layer"]
+        direction TB
+        DB[("PostgreSQL 16\nDatabase")]
+        ART[/"Model Artifacts\n(Volume Read-Only)"/]
     end
-    U --> FE
-    D --> DEV
-    FE --> N80
-    DEV --> N8081
-    N80 -->|"/api/*"| F
-    N8081 -->|"/api/*"| F
-    F --> V
-    F --> S
-    F --> X
-    F --> DM
-    F --> ETL
-    F --> MS
-    S --> P
-    P --> M
-    S --> X
-    X --> SH
-    X --> M
-    X --> P
-    ETL --> PG
-    S --> PG
-    X --> PG
-    MS --> PG
-    MS --> FS
-    M --> FS
-    P --> FS
-    SH --> FS
+
+    FE --> NGX
+    DEV --> NGX
+
+    API --> PRE
+    API --> DB
+
+    ART -.->|Load| PRE
 ```
 
 Gambar 4.5 Ringkasan topologi sistem OtoValue
