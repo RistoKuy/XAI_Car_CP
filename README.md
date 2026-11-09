@@ -33,6 +33,7 @@ Dokumentasi ini disusun dalam 7 fase pengembangan. Urutan fase = urutan baca.
 - [Fase 7: Pemeliharaan dan Evaluasi](#fase-7-pemeliharaan-dan-evaluasi)
 - [BAB III: Metode Pengembangan](#bab-iii-metode-pengembangan)
 - [BAB IV: Gambaran Pengembangan Produk](#bab-iv-gambaran-pengembangan-produk)
+- [BAB V: Kesimpulan dan Saran](#bab-v-kesimpulan-dan-saran)
 
 ## Fase 1: Analisis Kebutuhan
 
@@ -1920,3 +1921,34 @@ perlu diperhatikan:
    bukan sistem autentikasi multi-peran berbasis token (JWT/OAuth2). Penerapan sistem
    keamanan pengguna bertingkat direncanakan untuk pengembangan sistem produksi skala
    penuh berikutnya.
+
+# BAB V KESIMPULAN DAN SARAN
+
+## 5.1 Kesimpulan
+
+Berdasarkan perumusan masalah, tujuan penelitian, serta rangkaian pengujian yang telah dilaksanakan pada Capstone Project pengembangan sistem estimasi harga mobil bekas OtoValue, diperoleh kesimpulan sebagai berikut:
+
+1. **Kinerja Model Prediksi XGBoost Regressor**:
+   Penerapan algoritma XGBoost Regressor dengan kemampuan penanganan variabel kategorikal bawaan (*native categorical*) terbukti menghasilkan performa prediksi yang akurat pada dataset pasar mobil bekas Indonesia. Evaluasi model aktif `xgb-v1` pada data uji independen sebanyak 4.311 sampel (20% dari total 21.553 data listing terfilter) menghasilkan nilai koefisien determinasi ($R^2$) sebesar 0,9371, *Mean Absolute Error* (MAE) sebesar Rp25.446.042, *Root Mean Squared Error* (RMSE) sebesar Rp52.997.228, dan *Mean Absolute Percentage Error* (MAPE) sebesar 8,40%. Capaian MAPE di bawah 10% ini mengonfirmasi bahwa model berada pada kategori peramalan sangat baik (*highly accurate*), mampu menangkap pola depresiasi harga kendaraan non-linear, dan dapat diandalkan untuk menaksir nilai wajar kendaraan secara konsisten.
+
+2. **Transparansi dan Penjelasan Model Menggunakan Explainable AI (Tree SHAP)**:
+   Penerapan metode Tree SHAP berhasil membuka sifat *black-box* dari model XGBoost dengan menguraikan luaran prediksi menjadi kontribusi aditif dari enam fitur semantik kendaraan (`year`, `km_1`, `brand`, `brand_type`, `machine_type`, dan `location`) terhadap nilai dasar (*base value*) pasar sebesar Rp313.736.320. Pengujian pada lima skenario masukan operasional membuktikan pemenuhan sifat aditivitas matematis ($\text{Base Value} + \sum \phi_i = \text{Prediksi}$) dengan selisih residu numerik maksimal Rp116,00, yang berada jauh di bawah ambang batas toleransi Rp1.000 akibat presisi bilangan pecahan *float32*. Analisis SHAP menunjukkan bahwa tahun pembuatan (faktor usia) dan jarak tempuh kendaraan merupakan kontributor utama yang memberikan dampak depresiasi paling signifikan terhadap nilai kendaraan, disusul oleh segmen tipe merek dan jenis transmisi. Lebih lanjut, pemanfaatan perhitungan kontribusi internal pohon XGBoost (`pred_contribs=True`) menghasilkan latensi inferensi yang sangat singkat (maksimal 14,52 ms per permintaan), memenuhi kebutuhan sistem interaktif tanpa memerlukan dependensi C++ pustaka runtime SHAP eksternal.
+
+3. **Integrasi dan Ketercapaian Prototipe Sistem OtoValue**:
+   Model XGBoost dan mesin penjelasan Tree SHAP berhasil diintegrasikan ke dalam arsitektur aplikasi berbasis web berlapis (*layered architecture*) yang terdiri dari backend FastAPI, basis data relasional PostgreSQL 16, proksi terbalik Nginx dengan isolasi dua port (port 80 untuk User Portal publik dan port 8081 *loopback* untuk Developer Portal), serta frontend ReactJS. Seluruh 12 kasus penggunaan (*use case* UC1 sampai UC12) dan 15 kriteria penerimaan produk terpenuhi 100% tanpa kegagalan (status verdict GO pada pengujian resmi commit `e96a380`). Sistem mampu menyajikan estimasi nilai pasar kendaraan yang disertai visualisasi kontribusi fitur dalam bentuk *waterfall chart* dan *bar chart* yang mudah dipahami oleh pengguna umum, sekaligus menyediakan modul operasional dataset, ETL, dan manajemen model bagi administrator pengembang.
+
+## 5.2 Saran
+
+Untuk menyempurnakan dan memperluas kapabilitas sistem OtoValue pada tahap pengembangan lanjutan maupun penelitian berikutnya, disarankan beberapa hal sebagai berikut:
+
+1. **Pengembangan dan Eksplorasi Model Machine Learning**:
+   - Melakukan komparasi performa (*benchmarking*) dengan algoritma pembelajaran mesin mutakhir lainnya, seperti LightGBM, CatBoost, atau pendekatan ansambel berbobot (*stacking/voting regressor*), untuk menguji potensi peningkatan akurasi serta efisiensi penggunaan memori.
+   - Mengembangkan representasi fitur kendaraan yang lebih mendalam, termasuk mengekstraksi informasi kondisi fisik, riwayat perawatan berkala, warna bodi, dan kelengkapan dokumen kendaraan dari kolom teks deskripsi menggunakan pemrosesan bahasa alami (*natural language processing*).
+
+2. **Peningkatan Keamanan dan Rekayasa Perangkat Lunak**:
+   - Mengimplementasikan mekanisme kontrol akses berbasis peran (*Role-Based Access Control* / RBAC) menggunakan standar industri seperti JSON Web Token (JWT) atau OAuth2 pada Developer Portal, sehingga pengelolaan administratif dapat diakses secara aman melalui jaringan publik tanpa hanya mengandalkan isolasi antarmuka *loopback* lokal.
+   - Membangun jalur pipa otomatisasi MLOps yang dilengkapi dengan mekanisme pemantauan penyimpangan data (*data drift*) dan penyimpangan konsep (*concept drift*), sehingga penurunan akurasi akibat pergeseran dinamika pasar dapat dideteksi secara dini dan memicu pelatihan ulang (*retraining*) model secara terjadwal.
+
+3. **Pengembangan Fitur Pengalaman Pengguna (UX)**:
+   - Menyediakan fitur simulasi komparasi harga antar-kendaraan secara berdampingan (*side-by-side comparison*) untuk membantu calon pembeli dalam membandingkan dua atau lebih opsi kendaraan berdasarkan rincian kontribusi nilai fiturnya.
+   - Menambahkan fitur proyeksi depresiasi harga di masa mendatang berdasarkan estimasi penambahan jarak tempuh tahunan, guna memberikan wawasan finansial jangka panjang bagi pemilik kendaraan.

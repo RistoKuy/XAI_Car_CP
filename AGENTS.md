@@ -13,6 +13,7 @@
 - **Comprehensive Commit Description Rule**: Every git commit message MUST include a clear, descriptive subject line followed by a comprehensive, detailed multi-line commit body explaining all specific code updates, files modified, and underlying architectural rationale.
 - **Continuous Documentation Synchronization Rule**: ALWAYS update and synchronize all project documentation (specifically [README.md](README.md) and [AGENTS.md](AGENTS.md)) whenever code, architecture, schemas, endpoints, or configurations change. Never leave documentation stale or lagging behind implementation.
 - **Documentation Centralization Rule**: ALL documentation MUST be centralized in [README.md](README.md) and [AGENTS.md](AGENTS.md). NEVER create fragmented `README.md` files inside subdirectories (`testing/`, `backend/`, `frontend/`, `ml/`, `infra/`). Subdirectory docs are forbidden except a 3-line pointer to the main README section. Before creating any `.md` file, extend the relevant README section instead.
+- **Mandatory Skills Invocation Rule (`using-superpowers` & `antislop-copywriting`)**: ALWAYS invoke and strictly adhere to `using-superpowers` (skill-first workflow discipline before any response or action) and `antislop-copywriting` (zero AI slop, zero buzzwords, absolute ban on em dashes `—`, zero emojis in prose/headings, strictly grounded facts and metrics) across all prompt turns, code generations, reports, and documentation updates.
 
 ---
 
@@ -28,11 +29,12 @@ Deliverable end-to-end (§1): dataset + metadata model di PostgreSQL, preprocess
 
 ## Mandatory Pre-Task Rule for AI Agents
 > [!IMPORTANT]
-> **ALWAYS READ GIT HISTORY & PROJECT DOCUMENTATION BEFORE WRITING CODE OR CREATING SCHEMAS**
+> **ALWAYS INVOKE MANDATORY SKILLS & VERIFY PROJECT CONTEXT BEFORE TAKING ACTION**
 >
-> 1. Run `git log -n 10 --oneline` (or view commit history) to inspect recent changes.
-> 2. Read this `AGENTS.md` to understand the technical blueprint (architecture, API spec, ERD, milestones).
-> 3. Inspect [dataset.csv](dataset.csv) before introducing new features, preprocessing rules, or data structures.
+> 1. **Mandatory Skills**: Selalu aktifkan dan jalankan skill `using-superpowers` (pra-eksekusi dan perutean proses) dan `antislop-copywriting` (larangan mutlak em dash `—`, AI slop/buzzwords, klaim tanpa bukti, serta emoji pada teks teknis/dokumentasi).
+> 2. **Git History & State**: Run `git log -n 10 --oneline` (atau periksa commit history) untuk memverifikasi perubahan terakhir.
+> 3. **Blueprint & Architecture**: Baca `AGENTS.md` untuk memahami arsitektur teknis, kontrak API, skema ERD, dan batasan implementasi.
+> 4. **Data Verification**: Periksa [dataset.csv](dataset.csv) sebelum merancang fitur, prapemrosesan, atau skema baru.
 
 ---
 
