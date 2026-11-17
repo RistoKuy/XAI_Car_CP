@@ -972,58 +972,332 @@ Tabel 4.1 Daftar fungsi utama produk
 | UC11 | Developer | Uji prediksi dan SHAP pada playground |
 | UC12 | Developer | Jelajahi API melalui Swagger UI |
 
-Untuk memperjelas dinamika eksekusi proses pada sistem, diagram aktivitas
-(*activity diagram*) dimodelkan untuk dua proses operasional utama: alur estimasi
-harga oleh pengguna umum (Gambar 4.3) dan alur pemrosesan data oleh pengembang
-(Gambar 4.4).
+Dua belas diagram aktivitas berikut menjabarkan alur setiap use case. Setiap
+diagram memakai swimlane `User / Developer` untuk tindakan aktor dan `OtoValue`
+untuk tindakan sistem. Diagram use case pada Gambar 4.2 tetap menjadi pemetaan
+aktor dan fungsi, sedangkan diagram aktivitas diberi nomor Gambar 4.3-4.14.
+
+#### Diagram aktivitas UC1: Input Data Kendaraan
 
 ```mermaid
-flowchart TD
-    StartUser([Mulai]) --> InputData[Isi Data Mobil]
-    InputData --> SubmitForm[Klik Hitung Estimasi]
-    SubmitForm --> CekInput{Data Lengkap?}
-    CekInput -- Belum --> PesanInput[Tampilkan Pesan Perbaikan]
-    PesanInput --> InputData
-    CekInput -- Ya --> HitungHarga[Model Menghitung Harga]
-    HitungHarga --> HitungSHAP[Hitung Penjelasan SHAP]
-    HitungSHAP --> SimpanLog[Simpan Riwayat Prediksi]
-    SimpanLog --> TampilHasil[Tampilkan Harga dan Penjelasan]
-    TampilHasil --> EndUser([Selesai])
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[User mengisi data kendaraan]
+        A2[User memperbaiki isian]
+        A3([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1[Formulir memeriksa isian]
+        S2{Input valid?}
+        S3[Tampilkan error pada field]
+        S4[Tandai formulir siap dikirim]
+    end
+    A1 --> S1 --> S2
+    S2 -- Tidak --> S3 --> A2 --> S1
+    S2 -- Ya --> S4 --> A3
 ```
 
-Gambar 4.3 Diagram aktivitas alur estimasi harga dan penjelasan SHAP
+Gambar 4.3 Diagram aktivitas UC1, input data kendaraan
 
-Diagram pada Gambar 4.3 menunjukkan alur pengguna: mengisi data mobil, menekan
-tombol hitung, lalu sistem memeriksa kelengkapan data. Bila data belum lengkap,
-pengguna diminta memperbaiki input. Bila lengkap, sistem menghitung estimasi
-harga, menyiapkan penjelasan faktor pembentuk harga, menyimpan riwayat, dan
-menampilkan hasilnya.
+#### Diagram aktivitas UC2: Hitung Estimasi Harga
 
 ```mermaid
-flowchart TD
-    StartDev([Mulai]) --> OpenDev[Buka Developer Portal]
-    OpenDev --> SelectFile[Pilih File CSV dan Mode Update atau Replace]
-    SelectFile --> ClickUpload[Klik Mulai ETL]
-    ClickUpload --> CekFile{File Valid?}
-    CekFile -- Tidak --> GagalUpload[Tampilkan Pesan Gagal]
-    GagalUpload --> EndDev([Selesai])
-    CekFile -- Ya --> SaringData[Saring Data Mobil Bekas]
-    SaringData --> CekMode{Mode Replace?}
-    CekMode -- Ya --> HapusLama[Hapus Data Lama]
-    CekMode -- Tidak --> SimpanData[Tambah Data Baru]
-    HapusLama --> SimpanData
-    SimpanData --> CatatLog[Catat Riwayat ETL]
-    CatatLog --> TampilRingkas[Tampilkan Ringkasan Hasil]
-    TampilRingkas --> EndDev
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[User mengirim formulir estimasi]
+        A2[User memperbaiki input]
+        A3[User melihat harga estimasi]
+        A4([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1[API memvalidasi payload]
+        S2{Payload valid?}
+        S3[Backend mengembalikan error validasi]
+        S4[Preprocessor menyiapkan fitur]
+        S5[XGBoost menghitung estimasi harga]
+        S6[Backend mencatat prediksi secara best-effort]
+        S7[Kirim hasil prediksi dan explanation]
+    end
+    A1 --> S1 --> S2
+    S2 -- Tidak --> S3 --> A2 --> A1
+    S2 -- Ya --> S4 --> S5 --> S6 --> S7 --> A3 --> A4
 ```
 
-Gambar 4.4 Diagram aktivitas alur upload dataset dan eksekusi ETL
+Gambar 4.4 Diagram aktivitas UC2, hitung estimasi harga
 
-Diagram pada Gambar 4.4 menunjukkan alur pengembang: mengunggah file CSV dari
-Developer Portal, memilih mode **Update** (tambah data) atau **Replace** (ganti
-semua data). Sistem memeriksa keabsahan file, menyaring hanya data mobil bekas,
-menyimpan data, mencatat riwayat ETL, lalu menampilkan ringkasan hasil. File
-tidak valid ditolak dengan pesan kegagalan.
+#### Diagram aktivitas UC3: Lihat Penjelasan SHAP
+
+```mermaid
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[User membuka penjelasan pada hasil estimasi]
+        A2[User menjalankan estimasi UC2]
+        A3[User membaca kontribusi tiap fitur]
+        A4([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1{Hasil estimasi tersedia?}
+        S2[Tampilkan base value dan kontribusi fitur]
+        S3[Tampilkan pesan untuk menghitung estimasi]
+    end
+    A1 --> S1
+    S1 -- Ya --> S2 --> A3 --> A4
+    S1 -- Tidak --> S3 --> A2 --> A1
+```
+
+Gambar 4.5 Diagram aktivitas UC3, lihat penjelasan SHAP
+
+#### Diagram aktivitas UC4: Lihat Dashboard Data
+
+```mermaid
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[User membuka dashboard data]
+        A2[User melihat statistik listing]
+        A3([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1[Frontend meminta statistik dataset]
+        S2[API menghitung agregasi listing]
+        S3{Data berhasil dimuat?}
+        S4[Kirim statistik ke dashboard]
+        S5[Tampilkan pesan error dan aksi coba lagi]
+    end
+    A1 --> S1 --> S2 --> S3
+    S3 -- Ya --> S4 --> A2 --> A3
+    S3 -- Tidak --> S5 --> A1
+```
+
+Gambar 4.6 Diagram aktivitas UC4, lihat dashboard data
+
+#### Diagram aktivitas UC5: Lihat System Overview
+
+```mermaid
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[Developer membuka halaman overview]
+        A2[Developer meninjau status sistem]
+        A3([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1[Frontend meminta developer overview]
+        S2[API mengumpulkan status backend, database, model, dan ETL]
+        S3{Overview berhasil dimuat?}
+        S4[Kirim ringkasan status]
+        S5[Tampilkan error pemuatan]
+    end
+    A1 --> S1 --> S2 --> S3
+    S3 -- Ya --> S4 --> A2 --> A3
+    S3 -- Tidak --> S5 --> A1
+```
+
+Gambar 4.7 Diagram aktivitas UC5, lihat system overview
+
+#### Diagram aktivitas UC6: Upload Dataset CSV
+
+```mermaid
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[Developer memilih file CSV]
+        A2[Developer memilih mode UC7 dan mengirim upload]
+        A3[Developer melihat ringkasan hasil]
+        A4([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1[Frontend memeriksa pilihan file]
+        S2{File dapat diunggah?}
+        S3[Tampilkan error file]
+        S4[Kirim file dan mode ke proses ETL UC8]
+        S5[Tampilkan hasil upload]
+    end
+    A1 --> S1 --> S2
+    S2 -- Tidak --> S3 --> A1
+    S2 -- Ya --> A2 --> S4 --> S5 --> A3 --> A4
+```
+
+Gambar 4.8 Diagram aktivitas UC6, upload dataset CSV
+
+#### Diagram aktivitas UC7: Pilih Mode Update atau Replace
+
+```mermaid
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[Developer memilih Update atau Replace]
+        A2{Pilihan sesuai kebutuhan?}
+        A3[Developer mengubah pilihan]
+        A4[Developer melanjutkan upload UC6]
+        A5([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1[Tampilkan fungsi mode: tambah atau ganti data]
+        S2[Simpan mode pada formulir upload]
+    end
+    A1 --> S1 --> A2
+    A2 -- Tidak --> A3 --> A1
+    A2 -- Ya --> S2 --> A4 --> A5
+```
+
+Gambar 4.9 Diagram aktivitas UC7, pilih mode Update atau Replace
+
+#### Diagram aktivitas UC8: Jalankan ETL dan Validasi
+
+```mermaid
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[Developer mengirim CSV dan mode]
+        A2[Developer meninjau ringkasan ETL]
+        A3([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1[Validasi header dan mulai transaksi]
+        S2{Header dan CSV dapat dibaca?}
+        S3[Rollback transaksi dan kirim error validasi]
+        S4{Mode Replace?}
+        S5[Hapus listing lama dalam transaksi]
+        S6[Proses baris streaming; masukkan baris valid secara batch dan hitung baris ditolak]
+        S7{Ada baris valid?}
+        S8[Rollback transaksi dan kirim error tidak ada baris valid]
+        S9[Catat job dan ringkasan ETL]
+        S10[Commit transaksi dan kirim ringkasan]
+    end
+    A1 --> S1 --> S2
+    S2 -- Tidak --> S3 --> A3
+    S2 -- Ya --> S4
+    S4 -- Ya --> S5 --> S6
+    S4 -- Tidak --> S6
+    S6 --> S7
+    S7 -- Tidak --> S8 --> A3
+    S7 -- Ya --> S9 --> S10 --> A2 --> A3
+```
+
+Gambar 4.10 Diagram aktivitas UC8, jalankan ETL dan validasi
+
+#### Diagram aktivitas UC9: Lihat Riwayat ETL
+
+```mermaid
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[Developer membuka riwayat ETL]
+        A2[Developer meninjau daftar job]
+        A3([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1[Frontend meminta daftar job ETL]
+        S2[API membaca riwayat ETL]
+        S3{Riwayat berhasil dimuat?}
+        S4[Kirim daftar job dan status]
+        S5[Tampilkan error pemuatan]
+    end
+    A1 --> S1 --> S2 --> S3
+    S3 -- Ya --> S4 --> A2 --> A3
+    S3 -- Tidak --> S5 --> A1
+```
+
+Gambar 4.11 Diagram aktivitas UC9, lihat riwayat ETL
+
+#### Diagram aktivitas UC10: Lihat Model dan Metrik
+
+```mermaid
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[Developer membuka katalog model]
+        A2[Developer meninjau versi dan metrik per split]
+        A3([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1[Frontend meminta katalog model]
+        S2[API membaca model aktif dan seluruh versi]
+        S3{Data model berhasil dimuat?}
+        S4[Kirim metadata dan metrik]
+        S5[Tampilkan error pemuatan]
+    end
+    A1 --> S1 --> S2 --> S3
+    S3 -- Ya --> S4 --> A2 --> A3
+    S3 -- Tidak --> S5 --> A1
+```
+
+Gambar 4.12 Diagram aktivitas UC10, lihat model dan metrik
+
+#### Diagram aktivitas UC11: Uji Prediction Playground
+
+```mermaid
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[Developer mengisi spesifikasi kendaraan]
+        A2[Developer memperbaiki input setelah error validasi]
+        A3[Developer mencoba lagi setelah layanan pulih]
+        A4[Developer meninjau estimasi dan kontribusi SHAP]
+        A5([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1[Playground mengirim permintaan prediksi]
+        S2[API memvalidasi input]
+        S3{Input valid?}
+        S4[Kembalikan error validasi]
+        S5{Model dan layanan siap?}
+        S6[Kembalikan error layanan atau model]
+        S7[XGBoost menghitung estimasi dan Tree SHAP]
+        S8[Kirim hasil dan explanation]
+    end
+    A1 --> S1 --> S2 --> S3
+    S3 -- Tidak --> S4 --> A2 --> A1
+    S3 -- Ya --> S5
+    S5 -- Tidak --> S6 --> A3 --> A1
+    S5 -- Ya --> S7 --> S8 --> A4 --> A5
+```
+
+Gambar 4.13 Diagram aktivitas UC11, uji Prediction Playground
+
+#### Diagram aktivitas UC12: Jelajahi API via Swagger
+
+```mermaid
+flowchart LR
+    subgraph Actor["User / Developer"]
+        direction TB
+        A0([Mulai]) --> A1[Developer membuka API Explorer]
+        A2[Developer memilih endpoint]
+        A3[Developer membaca dokumentasi atau mengirim request uji]
+        A4[Developer meninjau response]
+        A5([Selesai])
+    end
+    subgraph OtoValue["OtoValue"]
+        direction TB
+        S1[Buka Swagger UI dan skema OpenAPI]
+        S2{Dokumentasi tersedia?}
+        S3[Tampilkan error akses]
+        S4[Tampilkan deskripsi endpoint dan skema]
+        S5[API memproses request uji]
+        S6[Kirim response HTTP]
+    end
+    A1 --> S1 --> S2
+    S2 -- Tidak --> S3 --> A5
+    S2 -- Ya --> S4 --> A2 --> A3
+    A3 --> S5 --> S6 --> A4 --> A5
+```
+
+Gambar 4.14 Diagram aktivitas UC12, jelajahi API via Swagger
 
 ### 4.2.2 Karakteristik Pengguna
 
@@ -1178,7 +1452,7 @@ Tabel 4.6 Perbandingan alternatif dan dasar pemilihan solusi
 
 Desain arsitektur produk mengintegrasikan interaksi antara pengguna, gerbang
 keamanan web, layanan backend, engine pembelajaran mesin, serta basis data
-penyimpanan. Topologi arsitektur sistem digambarkan pada Gambar 4.5.
+penyimpanan. Topologi arsitektur sistem digambarkan pada Gambar 4.15.
 
 ```mermaid
 flowchart LR
@@ -1217,14 +1491,14 @@ flowchart LR
     ART -.->|Load| PRE
 ```
 
-Gambar 4.5 Ringkasan topologi sistem OtoValue
+Gambar 4.15 Ringkasan topologi sistem OtoValue
 
 Topologi arsitektur sistem OtoValue dirancang dengan memisahkan client, application gateway, machine learning engine, dan persistence layer untuk menjaga modularitas serta keamanan data. Pengguna umum mengakses User Portal melalui reverse proxy Nginx port 80 publik, sedangkan pengelola sistem mengakses Developer Portal melalui port 8081 yang diisolasi khusus antarmuka loopback 127.0.0.1. Seluruh permintaan data dan komputasi diteruskan ke FastAPI untuk divalidasi oleh Pydantic, kemudian diproses oleh Prediction Service atau ETL Engine. Model XGBoost dan preprocessor dimuat langsung ke memori dari volume artefak read-only saat aplikasi dijalankan, sementara riwayat transaksi, log prediksi, dan audit ETL disimpan pada basis data relasional PostgreSQL.
 
 Untuk memperjelas urutan pertukaran pesan antar komponen dalam sistem, interaksi
-antar layer dimodelkan menggunakan diagram sekuens (*sequence diagram*). Gambar 4.6
+antar layer dimodelkan menggunakan diagram sekuens (*sequence diagram*). Gambar 4.16
 menampilkan diagram sekuens untuk alur inferensi harga dan penjelasan fitur,
-sedangkan Gambar 4.7 menyajikan diagram sekuens untuk alur upload dan pemrosesan ETL.
+sedangkan Gambar 4.17 menyajikan diagram sekuens untuk alur upload dan pemrosesan ETL.
 
 ```mermaid
 sequenceDiagram
@@ -1256,9 +1530,9 @@ sequenceDiagram
     UI-->>User: Tampilkan harga estimasi dan visualisasi SHAP
 ```
 
-Gambar 4.6 Diagram sekuens alur estimasi harga dan penjelasan SHAP
+Gambar 4.16 Diagram sekuens alur estimasi harga dan penjelasan SHAP
 
-Pada Gambar 4.6, seluruh permintaan prediksi dari klien diarahkan ke API Gateway,
+Pada Gambar 4.16, seluruh permintaan prediksi dari klien diarahkan ke API Gateway,
 divalidasi tipe datanya oleh Pydantic, kemudian ditransformasikan oleh pipeline
 prapemrosesan ke dalam representasi kategorikal native. Model XGBoost menghitung nilai
 estimasi harga dan engine Tree SHAP mengekstrak kontribusi lokal dari setiap fitur.
@@ -1286,9 +1560,9 @@ sequenceDiagram
     PORTAL-->>Dev: Tampilkan status keberhasilan dan metrik ETL
 ```
 
-Gambar 4.7 Diagram sekuens alur upload dataset dan eksekusi ETL
+Gambar 4.17 Diagram sekuens alur upload dataset dan eksekusi ETL
 
-Pada Gambar 4.7, pengembang mengunggah berkas CSV multipart ke API Gateway.
+Pada Gambar 4.17, pengembang mengunggah berkas CSV multipart ke API Gateway.
 Layanan ETL membaca data dalam bentuk *stream* per bongkahan (*chunk*), memvalidasi
 kepatuhan header terhadap skema basis data, membuang data listing baru, serta
 melakukan operasi penambahan (*append*) atau penggantian menyeluruh (*replace*) ke
@@ -1296,7 +1570,7 @@ tabel `listings`. Setelah transaksi basis data selesai, ringkasan jumlah baris
 disimpan ke riwayat audit ETL dan dilaporkan kembali ke Developer Portal.
 
 Struktur basis data relasional dirancang menggunakan enam tabel terhubung. Diagram
-hubungan entitas (*Entity-Relationship Diagram*) disajikan pada Gambar 4.8.
+hubungan entitas (*Entity-Relationship Diagram*) disajikan pada Gambar 4.18.
 
 ```mermaid
 erDiagram
@@ -1358,7 +1632,7 @@ erDiagram
     }
 ```
 
-Gambar 4.8 ERD enam tabel basis data OtoValue
+Gambar 4.18 ERD enam tabel basis data OtoValue
 
 Komunikasi data antara antarmuka klien dan backend diatur melalui kontrak REST API
 dengan *base URL* `/api/v1`. Ringkasan endpoint disajikan pada Tabel 4.7.
@@ -1522,11 +1796,13 @@ Repositori proyek memuat berkas-berkas utama yang mendefinisikan keseluruhan sis
   metrik evaluasi.
 - Direktori `testing/`: Skrip orkestrator dan lima suite pengujian otomatis (`run_all.py`
   serta `1_data_validation.py` sampai `5_model_xai_validation.py`).
-- Direktori `docs/figures/`: Aset gambar laporan. `bab4/` menyimpan 8 diagram BAB IV
-  sebagai PNG RGBA transparan (Gambar 4.1-4.8, hasil render `@mermaid-js/mermaid-cli`
-  dengan `-b transparent -s 3`), sedangkan `views/` menyimpan 10 tangkapan layar
-  antarmuka (Gambar 4.9-4.18) yang dilampirkan pada §4.5.2. Berkas di dalamnya adalah
-  aset biner, bukan dokumentasi naratif.
+- Direktori `docs/figures/`: Aset gambar laporan. `bab4/` menyimpan 18 PNG RGBA
+  transparan untuk Gambar 4.1-4.18. Dua belas diagram aktivitas UC1-UC12
+  (Gambar 4.3-4.14) tersedia sebagai PNG dengan nama file sesuai aktivitas dan
+  sumber Mermaid inline pada §4.2.1.
+  Dua PNG aktivitas lama tanpa swimlane tetap disimpan sebagai aset arsip berawalan `arsip-`. `views/` menyimpan 10
+  tangkapan layar antarmuka (Gambar 4.19-4.28) yang dilampirkan pada §4.5.2.
+  Berkas di dalamnya adalah aset biner, bukan dokumentasi naratif.
 
 #### Struktur Direktori Codebase
 Organisasi berkas pada repositori dirancang secara modular dan datar:
@@ -1687,19 +1963,19 @@ User Portal melayani kebutuhan publik melalui tiga halaman utama:
 
 ![Halaman Beranda User Portal](docs/figures/views/beranda.jpeg)
 
-Gambar 4.9 Halaman Beranda User Portal
+Gambar 4.19 Halaman Beranda User Portal
 
 ![Halaman Data Dashboard User Portal](docs/figures/views/data.jpeg)
 
-Gambar 4.10 Halaman Data Dashboard User Portal
+Gambar 4.20 Halaman Data Dashboard User Portal
 
 ![Formulir Hitung Estimasi User Portal](docs/figures/views/hitung.jpeg)
 
-Gambar 4.11 Formulir Hitung Estimasi User Portal
+Gambar 4.21 Formulir Hitung Estimasi User Portal
 
 ![Hasil Estimasi Harga dan Visualisasi Tree SHAP](docs/figures/views/hitung_hasil.jpeg)
 
-Gambar 4.12 Hasil estimasi harga dan visualisasi kontribusi Tree SHAP
+Gambar 4.22 Hasil estimasi harga dan visualisasi kontribusi Tree SHAP
 
 #### 2. Developer Portal (Port 8081)
 Developer Portal berfungsi sebagai konsol pemantauan dan pengelolaan teknis dengan
@@ -1723,27 +1999,27 @@ enam modul terpisah:
 
 ![Modul Business/System Overview Developer Portal](docs/figures/views/admin/overview.jpeg)
 
-Gambar 4.13 Modul Business/System Overview Developer Portal
+Gambar 4.23 Modul Business/System Overview Developer Portal
 
 ![Modul Dataset Management Developer Portal](docs/figures/views/admin/dataset_management.jpeg)
 
-Gambar 4.14 Modul Dataset Management Developer Portal
+Gambar 4.24 Modul Dataset Management Developer Portal
 
 ![Modul ETL Management Developer Portal](docs/figures/views/admin/riwayat_etl.jpeg)
 
-Gambar 4.15 Modul ETL Management Developer Portal (keadaan kosong sebelum ETL pertama)
+Gambar 4.25 Modul ETL Management Developer Portal (keadaan kosong sebelum ETL pertama)
 
 ![Modul Model Management Developer Portal](docs/figures/views/admin/model.jpeg)
 
-Gambar 4.16 Modul Model Management Developer Portal
+Gambar 4.26 Modul Model Management Developer Portal
 
 ![Modul API Explorer Developer Portal](docs/figures/views/admin/api_exp.jpeg)
 
-Gambar 4.17 Modul API Explorer Developer Portal
+Gambar 4.27 Modul API Explorer Developer Portal
 
 ![Swagger UI pada /docs](docs/figures/views/swagger.jpeg)
 
-Gambar 4.18 Dokumentasi interaktif Swagger UI pada `/docs`
+Gambar 4.28 Dokumentasi interaktif Swagger UI pada `/docs`
 
 #### 3. Standar Desain dan Aksesibilitas
 - *Adaptasi Responsif*: Antarmuka secara dinamis menyesuaikan diri terhadap ukuran

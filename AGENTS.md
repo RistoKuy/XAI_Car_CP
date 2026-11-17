@@ -56,7 +56,7 @@ Deliverable end-to-end (§1): dataset + metadata model di PostgreSQL, preprocess
 | --- | --- |
 | [dataset.csv](dataset.csv) | **Raw Dataset**: 22.679 rows, 14 columns, target `price`; categorical `brand`, `brand_type`, `machine_type`, `location`, `listing__type`; numeric `year`, `KM_1`, `KM_2`; text `item`, `ellipsize`, `listing__excerpt`; tanpa missing value; dataset sekunder hasil scraping portal Mobil123 (2025) dari [aliabdurrahman10/Used-Car-Analysis-in-Indonesia](https://github.com/aliabdurrahman10/Used-Car-Analysis-in-Indonesia). |
 | [testing/](testing/) (`run_all.py` + `1_data_validation.py` s.d. `5_model_xai_validation.py`, panduan di [README Fase 5](README.md#fase-5-integrasi-dan-pengujian)) | **Testing Suite Modular**: 5 skrip flat tanpa subdirektori. Metode, hasil, dan matriks XAI WAJIB terpusat di README Fase 5 — file laporan terpisah dilarang. |
-| [docs/figures/](docs/figures/) | **Aset Gambar Laporan**: `bab4/` = 8 diagram Mermaid BAB IV (Gambar 4.1-4.8) sebagai PNG RGBA transparan, `views/` = 10 tangkapan layar antarmuka (Gambar 4.9-4.18) yang dilampirkan di README §4.5.2. Aset biner saja — caption, metodologi render, dan penjelasan gambar tetap di README, bukan file `.md` baru di dalam `docs/`. |
+| [docs/figures/](docs/figures/) | **Aset Gambar Laporan**: `bab4/` berisi 18 PNG RGBA transparan untuk Gambar 4.1-4.18. Dua belas diagram aktivitas UC1-UC12 (Gambar 4.3-4.14) tersedia sebagai PNG dengan nama file sesuai aktivitas dan Mermaid inline di README §4.2.1. `views/` berisi 10 tangkapan layar antarmuka (Gambar 4.19-4.28) di README §4.5.2. Dua PNG aktivitas lama tanpa swimlane tetap disimpan sebagai aset arsip berawalan `arsip-`. Caption dan penjelasan gambar tersentralisasi di README. |
 
 ---
 
