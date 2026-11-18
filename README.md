@@ -14,7 +14,7 @@ Dokumentasi ini disusun dalam 7 fase pengembangan. Urutan fase = urutan baca.
 
 | Fase | Cakupan dokumentasi |
 |---|---|
-| [Fase 1: Analisis Kebutuhan](#fase-1-analisis-kebutuhan) | Prinsip estimasi + SHAP, dua aktor, use-case UC1-UC12, batas scope |
+| [Fase 1: Analisis Kebutuhan](#fase-1-analisis-kebutuhan) | Prinsip estimasi + SHAP, dua aktor, use-case UC1-UC7, batas scope |
 | [Fase 2: Perancangan Sistem](#fase-2-perancangan-sistem) | Arsitektur layered, kontrak API `/api/v1`, ERD 6 tabel, topologi Nginx dua port |
 | [Fase 3: Persiapan Data dan Machine Learning](#fase-3-persiapan-data-dan-machine-learning) | Dataset 22.679 baris, filter Bekas/Used, pipeline native categorical, artifact `xgb-v1` |
 | [Fase 4: Implementasi Sistem](#fase-4-implementasi-sistem) | Backend FastAPI, dua portal ReactJS, PostgreSQL + seed, struktur repo |
@@ -61,34 +61,23 @@ flowchart LR
     D([Developer])
 
     subgraph SYS[CP Prediction System]
-        UC1((Input Data Kendaraan))
-        UC2((Hitung Estimasi Harga))
-        UC3((Lihat Penjelasan SHAP))
-        UC4((Lihat Dashboard Data))
-        UC5((Lihat System Overview))
-        UC6((Upload Dataset CSV))
-        UC7((Pilih Mode Update / Replace))
-        UC8((Jalankan ETL + Validasi))
-        UC9((Lihat Riwayat ETL))
-        UC10((Lihat Model + Metrik))
-        UC11((Uji Prediction Playground))
-        UC12((Jelajahi API via Swagger))
+        UC1((Hitung Estimasi Harga dan Penjelasan SHAP))
+        UC2((Lihat Dashboard Data))
+        UC3((Lihat System Overview))
+        UC4((Upload Dataset dan Jalankan ETL))
+        UC5((Lihat Riwayat ETL))
+        UC6((Lihat Model dan Metrik))
+        UC7((Jelajahi API via Swagger))
     end
 
     U --> UC1
-    UC1 -. include .-> UC2
-    UC2 -. include .-> UC3
-    U --> UC4
-
+    U --> UC2
+    D --> UC1
+    D --> UC3
+    D --> UC4
     D --> UC5
     D --> UC6
-    UC6 -. include .-> UC7
-    UC7 -. include .-> UC8
-    D --> UC9
-    D --> UC10
-    D --> UC11
-    UC11 -. include .-> UC2
-    D --> UC12
+    D --> UC7
 ```
 
 Di luar scope CP: benchmarking multi-model (RF/LightGBM), LIME, auto-retraining
@@ -557,7 +546,7 @@ testing/
 - Memverifikasi proses build produksi Vite multi-page (`npm run build`) yang menghasilkan dua bundle terpisah: `index.html` (User Portal) dan `developer.html` (Developer Portal).
 - Memastikan tidak ada bundle chunk developer yang bocor ke dalam bundle publik.
 - Mengaudit seluruh source code frontend (`frontend/src/`) untuk menjamin 0 karakter emoji dan ketiadaan endpoint hardcoded.
-- Memvalidasi matriks use-case fungsional sistem (UC1 s.d. UC12).
+- Memvalidasi matriks use-case fungsional sistem (UC1 s.d. UC7).
 
 ### Suite 5: Model & XAI Validation (`testing/5_model_xai_validation.py`)
 - Memverifikasi integritas kontrak 6 file artifact pada `artifacts/models/xgboost/xgb-v1/`.
@@ -572,7 +561,7 @@ Pre-task: `git log -n 10 --oneline`, `git status --short`, `git diff --check`; b
 - **Suite 1 — Data Validation**: `python ml/scripts/profile_dataset.py` harus menghasilkan `rows=22679`, 14 kolom, `missing=0`, `Bekas+Used=21553` (`Baru=1126` dibuang), korelasi `KM_1-KM_2 ~0.999` (pakai `km_1`), `brand~51, brand_type~2002, location~22`, `year 1975-2025`. Quality check independen: duplikat=0, `price<=0`=0, year/km di luar batas=0, kolom teks mentah tidak jadi fitur. Aturan ETL (`etl_service.py:11-55`): tolak header hilang, `listing__type=Baru`, year/km/price invalid, kategori kosong, mode selain update/replace.
 - **Suite 2 — Unit Testing**: `cd backend && python -m pytest tests -q` (SQLite isolasi via `conftest.py`) — baseline `17 passed`. Cakupan: `CategoricalPreprocessor` (kategori asing -> `pd.NA`), `ModelManager.predict_row` (6 fitur, sort `abs(shap)`), `PredictionService` (fallback `km_1 ?? km_2`, `price=max(0,round)`, log best-effort), skema Pydantic (`year`/`km` invalid -> 422, `km_1=km_2=None` -> 422, `extra=forbid`), `normalize_mode`/`_parse_row`, repository roundtrip, `formatCurrency.js`. Verifikasi statis `compileall` + `git diff --check` bersih.
 - **Suite 3 — Integration Testing**: payload kanonis `{"brand":"Honda","brand_type":"City 1.5 E Sedan","machine_type":"Automatic","location":"DKI Jakarta","year":2021,"km_1":45000,"km_2":45000}`. `GET /health` -> 200 (`xgb-v1`) / 503 bila model belum load; `POST /predictions` -> 200 (6 fitur, `currency=IDR`); `GET /predictions/{id}` roundtrip; `GET /models/active` ada `metrics.test`; ETL `update` -> `append valid_rows=2`, `replace` -> `replaced=true`; header/mode/tipe salah dan semua-`Baru` -> 400; kategori asing -> 200, tipe/numerik salah -> 422. Docker E2E: `compose config/up/ps`, curl health/predict/overview, postgres privat, artifact read-only, `model_version` tertelusur ke baris `predictions`. Nginx: `:80` 404 untuk `developer.html`, `:8081` 404 untuk `index.html` + buka `/docs`.
-- **Suite 4 — Functional Testing**: `npm run build` dua entry terisolasi (`developer-*.js` tidak bocor ke bundle publik), audit 0 emoji + tanpa hardcode di `frontend/src/`, matriks UC1-UC12 (User: input-estimasi-SHAP-dashboard; Developer: overview-datasets-ETL-models-playground-API explorer), state kosong/loading/error informatif, responsif 768px, keyboard-friendly, kontras WCAG AA.
+- **Suite 4 — Functional Testing**: `npm run build` dua entry terisolasi (`developer-*.js` tidak bocor ke bundle publik), audit 0 emoji + tanpa hardcode di `frontend/src/`, matriks UC1-UC7 (User Umum: estimasi + SHAP, dashboard; Developer: estimasi via Playground, overview, upload dataset + ETL, riwayat ETL, models, API explorer), state kosong/loading/error informatif, responsif 768px, keyboard-friendly, kontras WCAG AA.
 - **Suite 5 — Model & XAI Validation**: kontrak 6 file artifact; baseline `MAE=25446042, RMSE=52997228.34, MAPE=8.397%, R2=0.9371, n_test=4311`. Retrain uji seed 42 ke dir temp: gate `R2>=0.93, MAPE<=9%`, toleransi ±10%. XAI via `predict_row` pada 5 skenario (tipikal, km ekstrem, tahun 1975, kategori asing, fallback km): 6 fitur, `base>0`, `price>=0`, additivitas `|base+sum(shap)-price|<=Rp1.000`, deterministik, latensi < `INFERENCE_TIMEOUT_S`. SHAP global opsional (`TreeExplainer` 200 baris -> shape `(200,6)`; skip di Python 3.13 = skipped bukan fail).
 
 ### Cara menjalankan
@@ -597,7 +586,7 @@ python testing/5_model_xai_validation.py
 | 1. Data Validation | PASS | 22679 baris, 21553 Bekas/Used, 0 null/duplikat, 8 kasus ETL lolos, korelasi 0.998979 |
 | 2. Unit Testing | PASS | `17 passed` (1.29s), `compileall` bersih, `formatIDR(150jt)=Rp 150.000.000` |
 | 3. Integration | PASS | health/predict/models/ETL/stats 200, `bad_mode/bad_header/all_baru` 400, isolasi `p80 dev:404, p8081 docs:200/idx:404` |
-| 4. Functional | PASS | build 1.37s, chunk developer 16.5 KB terpisah, 0 emoji, UC1-UC12 valid |
+| 4. Functional | PASS | build 1.37s, chunk developer 16.5 KB terpisah, 0 emoji, UC1-UC7 valid |
 | 5. Model & XAI | PASS | 6 file utuh, retrain `R2=0.9364, MAPE=8.19%`, residu <= Rp116, latensi <= 14.5 ms |
 | TOTAL | PASS | 0 FAIL, 0 SKIPPED |
 
@@ -730,8 +719,8 @@ menjelaskan faktor yang mempengaruhinya, sehingga keluaran setiap fase menjadi
 masukan fase berikutnya.
 
 **Fase 1: Analisis Kebutuhan.** Memetakan prinsip estimasi harga dan penjelasan
-SHAP, mengidentifikasi dua aktor (User Umum dan Developer), mendefinisikan 12
-*use case* utama (UC1 sampai UC12), serta menetapkan batas ruang lingkup proyek.
+SHAP, mengidentifikasi dua aktor (User Umum dan Developer), mendefinisikan 7
+*use case* utama (UC1 sampai UC7), serta menetapkan batas ruang lingkup proyek.
 
 **Fase 2: Perancangan Sistem.** Merancang arsitektur berlapis, skema basis data
 relasional enam tabel (ERD), kontrak REST API `/api/v1`, dan topologi *reverse
@@ -781,7 +770,7 @@ Tabel 3.1 Pemetaan fase, metode, dan algoritma
 
 | Fase | Metode | Algoritma / Teknologi |
 |---|---|---|
-| 1 | Analisis kebutuhan aktor dan use case | Pemodelan use case (UC1-UC12) |
+| 1 | Analisis kebutuhan aktor dan use case | Pemodelan use case (UC1-UC7) |
 | 2 | Perancangan arsitektur dan basis data | Layered architecture, ERD 6 tabel, kontrak REST |
 | 3 | Persiapan data dan pelatihan model | Filter Bekas/Used, `pandas.Categorical`, XGBoost native categorical (`enable_categorical=true`), split 80/20 seed 42 |
 | 4 | Implementasi layanan dan antarmuka | FastAPI + Pydantic, Tree SHAP native (`predict(pred_contribs=True)`), ReactJS dua entry, repository pattern |
@@ -915,43 +904,38 @@ Gambar 4.1 Gambaran umum arsitektur produk OtoValue
 
 ### 4.2.1 Fungsi Utama Produk
 
-Sistem menyediakan 12 fungsi utama (UC1 sampai UC12) yang melayani dua aktor,
-yaitu User Umum dan Developer. Pemetaan use case disajikan pada Gambar 4.2.
+Sistem menyediakan 7 fungsi utama (UC1 sampai UC7) yang melayani dua aktor,
+yaitu User Umum dan Developer. UC1 dipakai bersama oleh kedua aktor: User Umum
+membukanya dari menu Hitung Estimasi, Developer dari menu Playground. Tidak ada
+relasi *include* maupun *extend* antar use case. Pemetaan use case disajikan
+pada Gambar 4.2.
 
 ```mermaid
 flowchart LR
     U([User Umum])
     D([Developer])
+
     subgraph SYS[OtoValue]
-        UC1((Input Data Kendaraan))
-        UC2((Hitung Estimasi Harga))
-        UC3((Lihat Penjelasan SHAP))
-        UC4((Lihat Dashboard Data))
-        UC5((Lihat System Overview))
-        UC6((Upload Dataset CSV))
-        UC7((Pilih Mode Update / Replace))
-        UC8((Jalankan ETL + Validasi))
-        UC9((Lihat Riwayat ETL))
-        UC10((Lihat Model + Metrik))
-        UC11((Uji Prediction Playground))
-        UC12((Jelajahi API via Swagger))
+        UC1((Hitung Estimasi Harga dan Penjelasan SHAP))
+        UC2((Lihat Dashboard Data))
+        UC3((Lihat System Overview))
+        UC4((Upload Dataset dan Jalankan ETL))
+        UC5((Lihat Riwayat ETL))
+        UC6((Lihat Model dan Metrik))
+        UC7((Jelajahi API via Swagger))
     end
+
     U --> UC1
-    UC1 -. include .-> UC2
-    UC2 -. include .-> UC3
-    U --> UC4
+    U --> UC2
+    D --> UC1
+    D --> UC3
+    D --> UC4
     D --> UC5
     D --> UC6
-    UC6 -. include .-> UC7
-    UC7 -. include .-> UC8
-    D --> UC9
-    D --> UC10
-    D --> UC11
-    UC11 -. include .-> UC2
-    D --> UC12
+    D --> UC7
 ```
 
-Gambar 4.2 Fungsi utama produk (use case UC1-UC12)
+Gambar 4.2 Fungsi utama produk (use case UC1-UC7)
 
 Rincian fungsionalitas dari setiap use case dijelaskan pada Tabel 4.1.
 
@@ -959,345 +943,214 @@ Tabel 4.1 Daftar fungsi utama produk
 
 | Kode | Aktor | Fungsi |
 |---|---|---|
-| UC1 | User Umum | Input data kendaraan pada formulir estimasi |
-| UC2 | User Umum | Hitung estimasi harga melalui model XGBoost |
-| UC3 | User Umum | Lihat penjelasan SHAP tiap fitur |
-| UC4 | User Umum | Lihat dashboard statistik data listing |
-| UC5 | Developer | Lihat overview sistem (backend, database, model, ETL) |
-| UC6 | Developer | Upload dataset CSV |
-| UC7 | Developer | Pilih mode Update (append) atau Replace (ganti semua) |
-| UC8 | Developer | Jalankan ETL dengan validasi skema dan quality check |
-| UC9 | Developer | Lihat riwayat ETL |
-| UC10 | Developer | Lihat model dan metrik per split |
-| UC11 | Developer | Uji prediksi dan SHAP pada playground |
-| UC12 | Developer | Jelajahi API melalui Swagger UI |
+| UC1 | User Umum, Developer | Hitung estimasi harga melalui model XGBoost dan lihat penjelasan SHAP tiap fitur (User Umum dari menu Hitung Estimasi, Developer dari menu Playground) |
+| UC2 | User Umum | Lihat dashboard statistik data listing |
+| UC3 | Developer | Lihat overview sistem (backend, database, model, ETL) |
+| UC4 | Developer | Upload dataset CSV dengan mode Update (append) atau Replace (ganti semua), lalu jalankan ETL dengan validasi skema dan quality check |
+| UC5 | Developer | Lihat riwayat ETL |
+| UC6 | Developer | Lihat model dan metrik per split |
+| UC7 | Developer | Jelajahi API melalui Swagger UI |
 
-Dua belas diagram aktivitas berikut menjabarkan alur setiap use case. Setiap
-diagram memakai swimlane `User / Developer` untuk tindakan aktor dan `OtoValue`
-untuk tindakan sistem. Diagram use case pada Gambar 4.2 tetap menjadi pemetaan
-aktor dan fungsi, sedangkan diagram aktivitas diberi nomor Gambar 4.3-4.14.
+Tujuh diagram aktivitas berikut menjabarkan alur setiap use case. Setiap
+diagram memakai swimlane aktor (`User / Developer`, `User Umum`, atau
+`Developer`) untuk tindakan pengguna dan `OtoValue` untuk tindakan sistem.
+Diagram use case pada Gambar 4.2 menjadi pemetaan aktor dan fungsi, sedangkan
+diagram aktivitas diberi nomor Gambar 4.3-4.9.
 
-#### Diagram aktivitas UC1: Input Data Kendaraan
+#### Diagram aktivitas UC1: Hitung Estimasi Harga dan Penjelasan SHAP
 
 ```mermaid
 flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[User mengisi data kendaraan]
-        A2[User memperbaiki isian]
-        A3([Selesai])
+    subgraph ACT["User / Developer"]
+        A0((Mulai)):::start
+        A1(Buka Portal dan Klik Hitung Estimasi atau Playground):::step
+        A2(Isi Data Mobil dan Klik Hitung Estimasi):::step
     end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1[Formulir memeriksa isian]
-        S2{Input valid?}
-        S3[Tampilkan error pada field]
-        S4[Tandai formulir siap dikirim]
+    subgraph SYS["OtoValue"]
+        D{Data Valid?}:::step
+        S1(Tampilkan Pesan Error):::step
+        S2(Model Menghitung Estimasi Harga):::step
+        S3(Hitung Penjelasan SHAP):::step
+        S4(Simpan Riwayat Prediksi):::step
+        S5(Tampilkan Estimasi Harga dan Penjelasan SHAP):::step
+        E(((Selesai))):::stop
     end
-    A1 --> S1 --> S2
-    S2 -- Tidak --> S3 --> A2 --> S1
-    S2 -- Ya --> S4 --> A3
+    A0 --> A1 --> A2 --> D
+    D -- Tidak --> S1 --> A2
+    D -- Ya --> S2 --> S3 --> S4 --> S5 --> E
+    classDef step fill:#7DD3FC,stroke:#0B3C5D,stroke-width:2px,color:#111,font-weight:bold
+    classDef start fill:#111,stroke:#111,color:#fff,font-weight:bold
+    classDef stop fill:#fff,stroke:#111,stroke-width:3px,color:#111,font-weight:bold
+    style ACT fill:#fff,stroke:#111,stroke-width:2px
+    style SYS fill:#fff,stroke:#111,stroke-width:2px
 ```
 
-Gambar 4.3 Diagram aktivitas UC1, input data kendaraan
+Gambar 4.3 Diagram aktivitas UC1, hitung estimasi harga dan penjelasan SHAP
 
-#### Diagram aktivitas UC2: Hitung Estimasi Harga
+#### Diagram aktivitas UC2: Lihat Dashboard Data
 
 ```mermaid
 flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[User mengirim formulir estimasi]
-        A2[User memperbaiki input]
-        A3[User melihat harga estimasi]
-        A4([Selesai])
+    subgraph ACT["User Umum"]
+        A0((Mulai)):::start
+        A1(Buka Portal dan Klik Data):::step
     end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1[API memvalidasi payload]
-        S2{Payload valid?}
-        S3[Backend mengembalikan error validasi]
-        S4[Preprocessor menyiapkan fitur]
-        S5[XGBoost menghitung estimasi harga]
-        S6[Backend mencatat prediksi secara best-effort]
-        S7[Kirim hasil prediksi dan explanation]
+    subgraph SYS["OtoValue"]
+        S1(Ambil Statistik Listing):::step
+        D{Data Berhasil Dimuat?}:::step
+        S2(Tampilkan Dashboard Statistik):::step
+        S3(Tampilkan Pesan Error):::step
+        E(((Selesai))):::stop
     end
-    A1 --> S1 --> S2
-    S2 -- Tidak --> S3 --> A2 --> A1
-    S2 -- Ya --> S4 --> S5 --> S6 --> S7 --> A3 --> A4
+    A0 --> A1 --> S1 --> D
+    D -- Ya --> S2 --> E
+    D -- Tidak --> S3 --> A1
+    classDef step fill:#7DD3FC,stroke:#0B3C5D,stroke-width:2px,color:#111,font-weight:bold
+    classDef start fill:#111,stroke:#111,color:#fff,font-weight:bold
+    classDef stop fill:#fff,stroke:#111,stroke-width:3px,color:#111,font-weight:bold
+    style ACT fill:#fff,stroke:#111,stroke-width:2px
+    style SYS fill:#fff,stroke:#111,stroke-width:2px
 ```
 
-Gambar 4.4 Diagram aktivitas UC2, hitung estimasi harga
+Gambar 4.4 Diagram aktivitas UC2, lihat dashboard data
 
-#### Diagram aktivitas UC3: Lihat Penjelasan SHAP
+#### Diagram aktivitas UC3: Lihat System Overview
 
 ```mermaid
 flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[User membuka penjelasan pada hasil estimasi]
-        A2[User menjalankan estimasi UC2]
-        A3[User membaca kontribusi tiap fitur]
-        A4([Selesai])
+    subgraph ACT["Developer"]
+        A0((Mulai)):::start
+        A1(Buka Developer Portal dan Klik Overview):::step
     end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1{Hasil estimasi tersedia?}
-        S2[Tampilkan base value dan kontribusi fitur]
-        S3[Tampilkan pesan untuk menghitung estimasi]
+    subgraph SYS["OtoValue"]
+        S1(Kumpulkan Status Backend, Database, Model, dan ETL):::step
+        D{Status Berhasil Dimuat?}:::step
+        S2(Tampilkan Ringkasan Sistem):::step
+        S3(Tampilkan Pesan Error):::step
+        E(((Selesai))):::stop
     end
-    A1 --> S1
-    S1 -- Ya --> S2 --> A3 --> A4
-    S1 -- Tidak --> S3 --> A2 --> A1
+    A0 --> A1 --> S1 --> D
+    D -- Ya --> S2 --> E
+    D -- Tidak --> S3 --> A1
+    classDef step fill:#7DD3FC,stroke:#0B3C5D,stroke-width:2px,color:#111,font-weight:bold
+    classDef start fill:#111,stroke:#111,color:#fff,font-weight:bold
+    classDef stop fill:#fff,stroke:#111,stroke-width:3px,color:#111,font-weight:bold
+    style ACT fill:#fff,stroke:#111,stroke-width:2px
+    style SYS fill:#fff,stroke:#111,stroke-width:2px
 ```
 
-Gambar 4.5 Diagram aktivitas UC3, lihat penjelasan SHAP
+Gambar 4.5 Diagram aktivitas UC3, lihat system overview
 
-#### Diagram aktivitas UC4: Lihat Dashboard Data
+#### Diagram aktivitas UC4: Upload Dataset dan Jalankan ETL
 
 ```mermaid
 flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[User membuka dashboard data]
-        A2[User melihat statistik listing]
-        A3([Selesai])
+    subgraph ACT["Developer"]
+        A0((Mulai)):::start
+        A1(Buka Developer Portal dan Klik Datasets):::step
+        A2(Pilih File CSV dan Mode Update atau Replace, Klik Upload):::step
     end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1[Frontend meminta statistik dataset]
-        S2[API menghitung agregasi listing]
-        S3{Data berhasil dimuat?}
-        S4[Kirim statistik ke dashboard]
-        S5[Tampilkan pesan error dan aksi coba lagi]
+    subgraph SYS["OtoValue"]
+        S1(Validasi Header dan Baris CSV):::step
+        D{Data Valid?}:::step
+        S2(Tampilkan Pesan Error):::step
+        S3(Simpan Listing Valid secara Batch):::step
+        S4(Catat Riwayat ETL):::step
+        S5(Tampilkan Ringkasan ETL):::step
+        E(((Selesai))):::stop
     end
-    A1 --> S1 --> S2 --> S3
-    S3 -- Ya --> S4 --> A2 --> A3
-    S3 -- Tidak --> S5 --> A1
+    A0 --> A1 --> A2 --> S1 --> D
+    D -- Tidak --> S2 --> A2
+    D -- Ya --> S3 --> S4 --> S5 --> E
+    classDef step fill:#7DD3FC,stroke:#0B3C5D,stroke-width:2px,color:#111,font-weight:bold
+    classDef start fill:#111,stroke:#111,color:#fff,font-weight:bold
+    classDef stop fill:#fff,stroke:#111,stroke-width:3px,color:#111,font-weight:bold
+    style ACT fill:#fff,stroke:#111,stroke-width:2px
+    style SYS fill:#fff,stroke:#111,stroke-width:2px
 ```
 
-Gambar 4.6 Diagram aktivitas UC4, lihat dashboard data
+Gambar 4.6 Diagram aktivitas UC4, upload dataset dan jalankan ETL
 
-#### Diagram aktivitas UC5: Lihat System Overview
+#### Diagram aktivitas UC5: Lihat Riwayat ETL
 
 ```mermaid
 flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[Developer membuka halaman overview]
-        A2[Developer meninjau status sistem]
-        A3([Selesai])
+    subgraph ACT["Developer"]
+        A0((Mulai)):::start
+        A1(Buka Developer Portal dan Klik ETL):::step
     end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1[Frontend meminta developer overview]
-        S2[API mengumpulkan status backend, database, model, dan ETL]
-        S3{Overview berhasil dimuat?}
-        S4[Kirim ringkasan status]
-        S5[Tampilkan error pemuatan]
+    subgraph SYS["OtoValue"]
+        S1(Ambil Daftar Job ETL):::step
+        D{Riwayat Berhasil Dimuat?}:::step
+        S2(Tampilkan Tabel Riwayat ETL):::step
+        S3(Tampilkan Pesan Error):::step
+        E(((Selesai))):::stop
     end
-    A1 --> S1 --> S2 --> S3
-    S3 -- Ya --> S4 --> A2 --> A3
-    S3 -- Tidak --> S5 --> A1
+    A0 --> A1 --> S1 --> D
+    D -- Ya --> S2 --> E
+    D -- Tidak --> S3 --> A1
+    classDef step fill:#7DD3FC,stroke:#0B3C5D,stroke-width:2px,color:#111,font-weight:bold
+    classDef start fill:#111,stroke:#111,color:#fff,font-weight:bold
+    classDef stop fill:#fff,stroke:#111,stroke-width:3px,color:#111,font-weight:bold
+    style ACT fill:#fff,stroke:#111,stroke-width:2px
+    style SYS fill:#fff,stroke:#111,stroke-width:2px
 ```
 
-Gambar 4.7 Diagram aktivitas UC5, lihat system overview
+Gambar 4.7 Diagram aktivitas UC5, lihat riwayat ETL
 
-#### Diagram aktivitas UC6: Upload Dataset CSV
+#### Diagram aktivitas UC6: Lihat Model dan Metrik
 
 ```mermaid
 flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[Developer memilih file CSV]
-        A2[Developer memilih mode UC7 dan mengirim upload]
-        A3[Developer melihat ringkasan hasil]
-        A4([Selesai])
+    subgraph ACT["Developer"]
+        A0((Mulai)):::start
+        A1(Buka Developer Portal dan Klik Models):::step
     end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1[Frontend memeriksa pilihan file]
-        S2{File dapat diunggah?}
-        S3[Tampilkan error file]
-        S4[Kirim file dan mode ke proses ETL UC8]
-        S5[Tampilkan hasil upload]
+    subgraph SYS["OtoValue"]
+        S1(Ambil Versi Model dan Metrik):::step
+        D{Data Model Berhasil Dimuat?}:::step
+        S2(Tampilkan Versi Model dan Metrik per Split):::step
+        S3(Tampilkan Pesan Error):::step
+        E(((Selesai))):::stop
     end
-    A1 --> S1 --> S2
-    S2 -- Tidak --> S3 --> A1
-    S2 -- Ya --> A2 --> S4 --> S5 --> A3 --> A4
+    A0 --> A1 --> S1 --> D
+    D -- Ya --> S2 --> E
+    D -- Tidak --> S3 --> A1
+    classDef step fill:#7DD3FC,stroke:#0B3C5D,stroke-width:2px,color:#111,font-weight:bold
+    classDef start fill:#111,stroke:#111,color:#fff,font-weight:bold
+    classDef stop fill:#fff,stroke:#111,stroke-width:3px,color:#111,font-weight:bold
+    style ACT fill:#fff,stroke:#111,stroke-width:2px
+    style SYS fill:#fff,stroke:#111,stroke-width:2px
 ```
 
-Gambar 4.8 Diagram aktivitas UC6, upload dataset CSV
+Gambar 4.8 Diagram aktivitas UC6, lihat model dan metrik
 
-#### Diagram aktivitas UC7: Pilih Mode Update atau Replace
+#### Diagram aktivitas UC7: Jelajahi API via Swagger
 
 ```mermaid
 flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[Developer memilih Update atau Replace]
-        A2{Pilihan sesuai kebutuhan?}
-        A3[Developer mengubah pilihan]
-        A4[Developer melanjutkan upload UC6]
-        A5([Selesai])
+    subgraph ACT["Developer"]
+        A0((Mulai)):::start
+        A1(Buka Developer Portal dan Klik API Explorer):::step
+        A2(Klik Buka Swagger UI):::step
     end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1[Tampilkan fungsi mode: tambah atau ganti data]
-        S2[Simpan mode pada formulir upload]
+    subgraph SYS["OtoValue"]
+        D{Swagger UI Tersedia?}:::step
+        S1(Tampilkan Dokumentasi Endpoint dan Skema):::step
+        S2(Tampilkan Pesan Error):::step
+        E(((Selesai))):::stop
     end
-    A1 --> S1 --> A2
-    A2 -- Tidak --> A3 --> A1
-    A2 -- Ya --> S2 --> A4 --> A5
+    A0 --> A1 --> A2 --> D
+    D -- Ya --> S1 --> E
+    D -- Tidak --> S2 --> A2
+    classDef step fill:#7DD3FC,stroke:#0B3C5D,stroke-width:2px,color:#111,font-weight:bold
+    classDef start fill:#111,stroke:#111,color:#fff,font-weight:bold
+    classDef stop fill:#fff,stroke:#111,stroke-width:3px,color:#111,font-weight:bold
+    style ACT fill:#fff,stroke:#111,stroke-width:2px
+    style SYS fill:#fff,stroke:#111,stroke-width:2px
 ```
 
-Gambar 4.9 Diagram aktivitas UC7, pilih mode Update atau Replace
-
-#### Diagram aktivitas UC8: Jalankan ETL dan Validasi
-
-```mermaid
-flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[Developer mengirim CSV dan mode]
-        A2[Developer meninjau ringkasan ETL]
-        A3([Selesai])
-    end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1[Validasi header dan mulai transaksi]
-        S2{Header dan CSV dapat dibaca?}
-        S3[Rollback transaksi dan kirim error validasi]
-        S4{Mode Replace?}
-        S5[Hapus listing lama dalam transaksi]
-        S6[Proses baris streaming; masukkan baris valid secara batch dan hitung baris ditolak]
-        S7{Ada baris valid?}
-        S8[Rollback transaksi dan kirim error tidak ada baris valid]
-        S9[Catat job dan ringkasan ETL]
-        S10[Commit transaksi dan kirim ringkasan]
-    end
-    A1 --> S1 --> S2
-    S2 -- Tidak --> S3 --> A3
-    S2 -- Ya --> S4
-    S4 -- Ya --> S5 --> S6
-    S4 -- Tidak --> S6
-    S6 --> S7
-    S7 -- Tidak --> S8 --> A3
-    S7 -- Ya --> S9 --> S10 --> A2 --> A3
-```
-
-Gambar 4.10 Diagram aktivitas UC8, jalankan ETL dan validasi
-
-#### Diagram aktivitas UC9: Lihat Riwayat ETL
-
-```mermaid
-flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[Developer membuka riwayat ETL]
-        A2[Developer meninjau daftar job]
-        A3([Selesai])
-    end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1[Frontend meminta daftar job ETL]
-        S2[API membaca riwayat ETL]
-        S3{Riwayat berhasil dimuat?}
-        S4[Kirim daftar job dan status]
-        S5[Tampilkan error pemuatan]
-    end
-    A1 --> S1 --> S2 --> S3
-    S3 -- Ya --> S4 --> A2 --> A3
-    S3 -- Tidak --> S5 --> A1
-```
-
-Gambar 4.11 Diagram aktivitas UC9, lihat riwayat ETL
-
-#### Diagram aktivitas UC10: Lihat Model dan Metrik
-
-```mermaid
-flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[Developer membuka katalog model]
-        A2[Developer meninjau versi dan metrik per split]
-        A3([Selesai])
-    end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1[Frontend meminta katalog model]
-        S2[API membaca model aktif dan seluruh versi]
-        S3{Data model berhasil dimuat?}
-        S4[Kirim metadata dan metrik]
-        S5[Tampilkan error pemuatan]
-    end
-    A1 --> S1 --> S2 --> S3
-    S3 -- Ya --> S4 --> A2 --> A3
-    S3 -- Tidak --> S5 --> A1
-```
-
-Gambar 4.12 Diagram aktivitas UC10, lihat model dan metrik
-
-#### Diagram aktivitas UC11: Uji Prediction Playground
-
-```mermaid
-flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[Developer mengisi spesifikasi kendaraan]
-        A2[Developer memperbaiki input setelah error validasi]
-        A3[Developer mencoba lagi setelah layanan pulih]
-        A4[Developer meninjau estimasi dan kontribusi SHAP]
-        A5([Selesai])
-    end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1[Playground mengirim permintaan prediksi]
-        S2[API memvalidasi input]
-        S3{Input valid?}
-        S4[Kembalikan error validasi]
-        S5{Model dan layanan siap?}
-        S6[Kembalikan error layanan atau model]
-        S7[XGBoost menghitung estimasi dan Tree SHAP]
-        S8[Kirim hasil dan explanation]
-    end
-    A1 --> S1 --> S2 --> S3
-    S3 -- Tidak --> S4 --> A2 --> A1
-    S3 -- Ya --> S5
-    S5 -- Tidak --> S6 --> A3 --> A1
-    S5 -- Ya --> S7 --> S8 --> A4 --> A5
-```
-
-Gambar 4.13 Diagram aktivitas UC11, uji Prediction Playground
-
-#### Diagram aktivitas UC12: Jelajahi API via Swagger
-
-```mermaid
-flowchart LR
-    subgraph Actor["User / Developer"]
-        direction TB
-        A0([Mulai]) --> A1[Developer membuka API Explorer]
-        A2[Developer memilih endpoint]
-        A3[Developer membaca dokumentasi atau mengirim request uji]
-        A4[Developer meninjau response]
-        A5([Selesai])
-    end
-    subgraph OtoValue["OtoValue"]
-        direction TB
-        S1[Buka Swagger UI dan skema OpenAPI]
-        S2{Dokumentasi tersedia?}
-        S3[Tampilkan error akses]
-        S4[Tampilkan deskripsi endpoint dan skema]
-        S5[API memproses request uji]
-        S6[Kirim response HTTP]
-    end
-    A1 --> S1 --> S2
-    S2 -- Tidak --> S3 --> A5
-    S2 -- Ya --> S4 --> A2 --> A3
-    A3 --> S5 --> S6 --> A4 --> A5
-```
-
-Gambar 4.14 Diagram aktivitas UC12, jelajahi API via Swagger
+Gambar 4.9 Diagram aktivitas UC7, jelajahi API via Swagger
 
 ### 4.2.2 Karakteristik Pengguna
 
@@ -1452,7 +1305,7 @@ Tabel 4.6 Perbandingan alternatif dan dasar pemilihan solusi
 
 Desain arsitektur produk mengintegrasikan interaksi antara pengguna, gerbang
 keamanan web, layanan backend, engine pembelajaran mesin, serta basis data
-penyimpanan. Topologi arsitektur sistem digambarkan pada Gambar 4.15.
+penyimpanan. Topologi arsitektur sistem digambarkan pada Gambar 4.10.
 
 ```mermaid
 flowchart LR
@@ -1491,14 +1344,14 @@ flowchart LR
     ART -.->|Load| PRE
 ```
 
-Gambar 4.15 Ringkasan topologi sistem OtoValue
+Gambar 4.10 Ringkasan topologi sistem OtoValue
 
 Topologi arsitektur sistem OtoValue dirancang dengan memisahkan client, application gateway, machine learning engine, dan persistence layer untuk menjaga modularitas serta keamanan data. Pengguna umum mengakses User Portal melalui reverse proxy Nginx port 80 publik, sedangkan pengelola sistem mengakses Developer Portal melalui port 8081 yang diisolasi khusus antarmuka loopback 127.0.0.1. Seluruh permintaan data dan komputasi diteruskan ke FastAPI untuk divalidasi oleh Pydantic, kemudian diproses oleh Prediction Service atau ETL Engine. Model XGBoost dan preprocessor dimuat langsung ke memori dari volume artefak read-only saat aplikasi dijalankan, sementara riwayat transaksi, log prediksi, dan audit ETL disimpan pada basis data relasional PostgreSQL.
 
 Untuk memperjelas urutan pertukaran pesan antar komponen dalam sistem, interaksi
-antar layer dimodelkan menggunakan diagram sekuens (*sequence diagram*). Gambar 4.16
+antar layer dimodelkan menggunakan diagram sekuens (*sequence diagram*). Gambar 4.11
 menampilkan diagram sekuens untuk alur inferensi harga dan penjelasan fitur,
-sedangkan Gambar 4.17 menyajikan diagram sekuens untuk alur upload dan pemrosesan ETL.
+sedangkan Gambar 4.12 menyajikan diagram sekuens untuk alur upload dan pemrosesan ETL.
 
 ```mermaid
 sequenceDiagram
@@ -1530,9 +1383,9 @@ sequenceDiagram
     UI-->>User: Tampilkan harga estimasi dan visualisasi SHAP
 ```
 
-Gambar 4.16 Diagram sekuens alur estimasi harga dan penjelasan SHAP
+Gambar 4.11 Diagram sekuens alur estimasi harga dan penjelasan SHAP
 
-Pada Gambar 4.16, seluruh permintaan prediksi dari klien diarahkan ke API Gateway,
+Pada Gambar 4.11, seluruh permintaan prediksi dari klien diarahkan ke API Gateway,
 divalidasi tipe datanya oleh Pydantic, kemudian ditransformasikan oleh pipeline
 prapemrosesan ke dalam representasi kategorikal native. Model XGBoost menghitung nilai
 estimasi harga dan engine Tree SHAP mengekstrak kontribusi lokal dari setiap fitur.
@@ -1560,9 +1413,9 @@ sequenceDiagram
     PORTAL-->>Dev: Tampilkan status keberhasilan dan metrik ETL
 ```
 
-Gambar 4.17 Diagram sekuens alur upload dataset dan eksekusi ETL
+Gambar 4.12 Diagram sekuens alur upload dataset dan eksekusi ETL
 
-Pada Gambar 4.17, pengembang mengunggah berkas CSV multipart ke API Gateway.
+Pada Gambar 4.12, pengembang mengunggah berkas CSV multipart ke API Gateway.
 Layanan ETL membaca data dalam bentuk *stream* per bongkahan (*chunk*), memvalidasi
 kepatuhan header terhadap skema basis data, membuang data listing baru, serta
 melakukan operasi penambahan (*append*) atau penggantian menyeluruh (*replace*) ke
@@ -1570,7 +1423,7 @@ tabel `listings`. Setelah transaksi basis data selesai, ringkasan jumlah baris
 disimpan ke riwayat audit ETL dan dilaporkan kembali ke Developer Portal.
 
 Struktur basis data relasional dirancang menggunakan enam tabel terhubung. Diagram
-hubungan entitas (*Entity-Relationship Diagram*) disajikan pada Gambar 4.18.
+hubungan entitas (*Entity-Relationship Diagram*) disajikan pada Gambar 4.13.
 
 ```mermaid
 erDiagram
@@ -1632,7 +1485,7 @@ erDiagram
     }
 ```
 
-Gambar 4.18 ERD enam tabel basis data OtoValue
+Gambar 4.13 ERD enam tabel basis data OtoValue
 
 Komunikasi data antara antarmuka klien dan backend diatur melalui kontrak REST API
 dengan *base URL* `/api/v1`. Ringkasan endpoint disajikan pada Tabel 4.7.
@@ -1770,7 +1623,7 @@ Tabel 4.10 Rangkaian lima suite pengujian sistem
 | Suite 1 | `1_data_validation.py` | Profiling dataset mentah dan kepatuhan aturan penolakan ETL | Memastikan 22.679 baris mentah, 21.553 baris Bekas/Used, korelasi jarak tempuh 0,999, serta verifikasi 8 skenario penolakan data invalid |
 | Suite 2 | `2_unit_testing.py` | Unit test backend Pytest dalam memori SQLite dan analisis statis | Menjalankan 17 uji unit backend (lolos 100%), kompilasi statis `compileall` bersih, dan uji pemformat mata uang Rupiah |
 | Suite 3 | `3_integration_testing.py` | Integrasi endpoint REST API live dan isolasi keamanan Nginx | Memastikan seluruh endpoint mengembalikan status HTTP 200, penolakan mode invalid (HTTP 400), serta isolasi silang port 80 dan 8081 |
-| Suite 4 | `4_functional_testing.py` | Verifikasi build produksi antarmuka dan matriks fungsi use case | Memverifikasi pemisahan chunk developer dari bundle publik, verifikasi 0 emoji, dan kepatuhan skenario use case UC1 sampai UC12 |
+| Suite 4 | `4_functional_testing.py` | Verifikasi build produksi antarmuka dan matriks fungsi use case | Memverifikasi pemisahan chunk developer dari bundle publik, verifikasi 0 emoji, dan kepatuhan skenario use case UC1 sampai UC7 |
 | Suite 5 | `5_model_xai_validation.py` | Integritas artefak model, reproduksibilitas, dan aditivitas SHAP | Menjamin keberadaan 6 berkas artefak, keberhasilan retrain seed 42 ($R^2 \ge 0,93$, MAPE $\le 9\%$), dan residu SHAP $\le 	ext{Rp1.000}$ |
 
 ## 4.5 Implementasi
@@ -1796,12 +1649,12 @@ Repositori proyek memuat berkas-berkas utama yang mendefinisikan keseluruhan sis
   metrik evaluasi.
 - Direktori `testing/`: Skrip orkestrator dan lima suite pengujian otomatis (`run_all.py`
   serta `1_data_validation.py` sampai `5_model_xai_validation.py`).
-- Direktori `docs/figures/`: Aset gambar laporan. `bab4/` menyimpan 18 PNG RGBA
-  transparan untuk Gambar 4.1-4.18. Dua belas diagram aktivitas UC1-UC12
-  (Gambar 4.3-4.14) tersedia sebagai PNG dengan nama file sesuai aktivitas dan
+- Direktori `docs/figures/`: Aset gambar laporan. `bab4/` menyimpan 13 PNG RGBA
+  transparan untuk Gambar 4.1-4.13. Tujuh diagram aktivitas UC1-UC7
+  (Gambar 4.3-4.9) tersedia sebagai PNG dengan nama file sesuai aktivitas dan
   sumber Mermaid inline pada §4.2.1.
   Dua PNG aktivitas lama tanpa swimlane tetap disimpan sebagai aset arsip berawalan `arsip-`. `views/` menyimpan 10
-  tangkapan layar antarmuka (Gambar 4.19-4.28) yang dilampirkan pada §4.5.2.
+  tangkapan layar antarmuka (Gambar 4.14-4.23) yang dilampirkan pada §4.5.2.
   Berkas di dalamnya adalah aset biner, bukan dokumentasi naratif.
 
 #### Struktur Direktori Codebase
@@ -1963,19 +1816,19 @@ User Portal melayani kebutuhan publik melalui tiga halaman utama:
 
 ![Halaman Beranda User Portal](docs/figures/views/beranda.jpeg)
 
-Gambar 4.19 Halaman Beranda User Portal
+Gambar 4.14 Halaman Beranda User Portal
 
 ![Halaman Data Dashboard User Portal](docs/figures/views/data.jpeg)
 
-Gambar 4.20 Halaman Data Dashboard User Portal
+Gambar 4.15 Halaman Data Dashboard User Portal
 
 ![Formulir Hitung Estimasi User Portal](docs/figures/views/hitung.jpeg)
 
-Gambar 4.21 Formulir Hitung Estimasi User Portal
+Gambar 4.16 Formulir Hitung Estimasi User Portal
 
 ![Hasil Estimasi Harga dan Visualisasi Tree SHAP](docs/figures/views/hitung_hasil.jpeg)
 
-Gambar 4.22 Hasil estimasi harga dan visualisasi kontribusi Tree SHAP
+Gambar 4.17 Hasil estimasi harga dan visualisasi kontribusi Tree SHAP
 
 #### 2. Developer Portal (Port 8081)
 Developer Portal berfungsi sebagai konsol pemantauan dan pengelolaan teknis dengan
@@ -1999,27 +1852,27 @@ enam modul terpisah:
 
 ![Modul Business/System Overview Developer Portal](docs/figures/views/admin/overview.jpeg)
 
-Gambar 4.23 Modul Business/System Overview Developer Portal
+Gambar 4.18 Modul Business/System Overview Developer Portal
 
 ![Modul Dataset Management Developer Portal](docs/figures/views/admin/dataset_management.jpeg)
 
-Gambar 4.24 Modul Dataset Management Developer Portal
+Gambar 4.19 Modul Dataset Management Developer Portal
 
 ![Modul ETL Management Developer Portal](docs/figures/views/admin/riwayat_etl.jpeg)
 
-Gambar 4.25 Modul ETL Management Developer Portal (keadaan kosong sebelum ETL pertama)
+Gambar 4.20 Modul ETL Management Developer Portal (keadaan kosong sebelum ETL pertama)
 
 ![Modul Model Management Developer Portal](docs/figures/views/admin/model.jpeg)
 
-Gambar 4.26 Modul Model Management Developer Portal
+Gambar 4.21 Modul Model Management Developer Portal
 
 ![Modul API Explorer Developer Portal](docs/figures/views/admin/api_exp.jpeg)
 
-Gambar 4.27 Modul API Explorer Developer Portal
+Gambar 4.22 Modul API Explorer Developer Portal
 
 ![Swagger UI pada /docs](docs/figures/views/swagger.jpeg)
 
-Gambar 4.28 Dokumentasi interaktif Swagger UI pada `/docs`
+Gambar 4.23 Dokumentasi interaktif Swagger UI pada `/docs`
 
 #### 3. Standar Desain dan Aksesibilitas
 - *Adaptasi Responsif*: Antarmuka secara dinamis menyesuaikan diri terhadap ukuran
@@ -2047,7 +1900,7 @@ Tabel 4.11 Hasil eksekusi pengujian resmi sistem (13 Oktober 2026)
 | 1. Data Validation | PASS | 22.679 baris mentah, 21.553 baris Bekas/Used, 0 nilai null, 0 duplikat, 8 kasus uji aturan ETL lolos, korelasi jarak tempuh 0,998979 |
 | 2. Unit Testing | PASS | 17 unit test Pytest lolos dalam 1,29 detik, kompilasi statis `compileall` bersih, pemformat moneter `formatCurrency.js` valid |
 | 3. Integration Testing | PASS | Endpoint health, predictions, models, dataset, etl, dan stats mengembalikan HTTP 200; penolakan berkas dan mode invalid mengembalikan HTTP 400; isolasi port 80 dan port 8081 terkonfirmasi |
-| 4. Functional Testing | PASS | Build produksi Vite multi-page selesai dalam 1,37 detik, chunk modul developer (16,5 KB) terisolasi penuh, 0 karakter emoji, use case UC1 sampai UC12 tervalidasi |
+| 4. Functional Testing | PASS | Build produksi Vite multi-page selesai dalam 1,37 detik, chunk modul developer (16,5 KB) terisolasi penuh, 0 karakter emoji, use case UC1 sampai UC7 tervalidasi |
 | 5. Model & XAI Validation | PASS | 6 berkas artefak model terverifikasi utuh, pelatihan ulang reproducible dengan seed 42 menghasilkan $R^2 = 0,9364$ dan $	ext{MAPE} = 8,19\%$, selisih residu aditivitas Tree SHAP $\le 	ext{Rp116}$, latensi inferensi maksimum 14,5 ms |
 | TOTAL KESELURUHAN | PASS | 6 dari 6 kategori PASS (0 FAIL, 0 SKIPPED) |
 
@@ -2211,7 +2064,7 @@ Berdasarkan perumusan masalah, tujuan penelitian, serta rangkaian pengujian yang
    Penerapan metode Tree SHAP berhasil membuka sifat *black-box* dari model XGBoost dengan menguraikan luaran prediksi menjadi kontribusi aditif dari enam fitur semantik kendaraan (`year`, `km_1`, `brand`, `brand_type`, `machine_type`, dan `location`) terhadap nilai dasar (*base value*) pasar sebesar Rp313.736.320. Pengujian pada lima skenario masukan operasional membuktikan pemenuhan sifat aditivitas matematis ($\text{Base Value} + \sum \phi_i = \text{Prediksi}$) dengan selisih residu numerik maksimal Rp116,00, yang berada jauh di bawah ambang batas toleransi Rp1.000 akibat presisi bilangan pecahan *float32*. Analisis SHAP menunjukkan bahwa tahun pembuatan (faktor usia) dan jarak tempuh kendaraan merupakan kontributor utama yang memberikan dampak depresiasi paling signifikan terhadap nilai kendaraan, disusul oleh segmen tipe merek dan jenis transmisi. Lebih lanjut, pemanfaatan perhitungan kontribusi internal pohon XGBoost (`pred_contribs=True`) menghasilkan latensi inferensi yang sangat singkat (maksimal 14,52 ms per permintaan), memenuhi kebutuhan sistem interaktif tanpa memerlukan dependensi C++ pustaka runtime SHAP eksternal.
 
 3. **Integrasi dan Ketercapaian Prototipe Sistem OtoValue**:
-   Model XGBoost dan mesin penjelasan Tree SHAP berhasil diintegrasikan ke dalam arsitektur aplikasi berbasis web berlapis (*layered architecture*) yang terdiri dari backend FastAPI, basis data relasional PostgreSQL 16, proksi terbalik Nginx dengan isolasi dua port (port 80 untuk User Portal publik dan port 8081 *loopback* untuk Developer Portal), serta frontend ReactJS. Seluruh 12 kasus penggunaan (*use case* UC1 sampai UC12) dan 15 kriteria penerimaan produk terpenuhi 100% tanpa kegagalan (status verdict GO pada pengujian resmi commit `e96a380`). Sistem mampu menyajikan estimasi nilai pasar kendaraan yang disertai visualisasi kontribusi fitur dalam bentuk *waterfall chart* dan *bar chart* yang mudah dipahami oleh pengguna umum, sekaligus menyediakan modul operasional dataset, ETL, dan manajemen model bagi administrator pengembang.
+   Model XGBoost dan mesin penjelasan Tree SHAP berhasil diintegrasikan ke dalam arsitektur aplikasi berbasis web berlapis (*layered architecture*) yang terdiri dari backend FastAPI, basis data relasional PostgreSQL 16, proksi terbalik Nginx dengan isolasi dua port (port 80 untuk User Portal publik dan port 8081 *loopback* untuk Developer Portal), serta frontend ReactJS. Seluruh 7 kasus penggunaan (*use case* UC1 sampai UC7) dan 15 kriteria penerimaan produk terpenuhi 100% tanpa kegagalan (status verdict GO pada pengujian resmi commit `e96a380`). Sistem mampu menyajikan estimasi nilai pasar kendaraan yang disertai visualisasi kontribusi fitur dalam bentuk *waterfall chart* dan *bar chart* yang mudah dipahami oleh pengguna umum, sekaligus menyediakan modul operasional dataset, ETL, dan manajemen model bagi administrator pengembang.
 
 ## 5.2 Saran
 

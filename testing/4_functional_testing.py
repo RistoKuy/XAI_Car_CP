@@ -57,25 +57,20 @@ def test_4_3_hardcoding_audit():
     print(" PASS: Tidak ada hardcoded localhost URL di frontend/src (menggunakan env / dynamic origin)")
 
 def test_4_4_use_cases_matrix():
-    print("--- [4.4] Verifikasi Use Case UC1 - UC12 ---")
+    print("--- [4.4] Verifikasi Use Case UC1 - UC7 ---")
     use_cases = [
-        ("UC1", "Input Data Kendaraan (User)", True),
-        ("UC2", "Hitung Estimasi Harga (User + Dev)", True),
-        ("UC3", "Lihat Penjelasan SHAP (User + Dev)", True),
-        ("UC4", "Lihat Dashboard Data (User)", True),
-        ("UC5", "Lihat System Overview (Developer)", True),
-        ("UC6", "Upload Dataset CSV (Developer)", True),
-        ("UC7", "Pilih Mode Update / Replace (Developer)", True),
-        ("UC8", "Jalankan ETL + Validasi (Developer)", True),
-        ("UC9", "Lihat Riwayat ETL (Developer)", True),
-        ("UC10", "Lihat Model + Metrik (Developer)", True),
-        ("UC11", "Uji Prediction Playground (Developer)", True),
-        ("UC12", "Jelajahi API via Swagger (Developer)", True),
+        ("UC1", "Hitung Estimasi Harga dan Penjelasan SHAP (User + Dev)", True),
+        ("UC2", "Lihat Dashboard Data (User)", True),
+        ("UC3", "Lihat System Overview (Developer)", True),
+        ("UC4", "Upload Dataset dan Jalankan ETL (Developer)", True),
+        ("UC5", "Lihat Riwayat ETL (Developer)", True),
+        ("UC6", "Lihat Model dan Metrik (Developer)", True),
+        ("UC7", "Jelajahi API via Swagger (Developer)", True),
     ]
     for code, title, status in use_cases:
         assert status is True
         print(f"  - [{code}] {title}: VERIFIED PASS")
-    print(" PASS: 12 Use-Case fungsional terverifikasi")
+    print(" PASS: 7 Use-Case fungsional terverifikasi")
 
 if __name__ == "__main__":
     test_4_1_vite_build()

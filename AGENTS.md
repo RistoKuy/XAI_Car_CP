@@ -56,7 +56,7 @@ Deliverable end-to-end (§1): dataset + metadata model di PostgreSQL, preprocess
 | --- | --- |
 | [dataset.csv](dataset.csv) | **Raw Dataset**: 22.679 rows, 14 columns, target `price`; categorical `brand`, `brand_type`, `machine_type`, `location`, `listing__type`; numeric `year`, `KM_1`, `KM_2`; text `item`, `ellipsize`, `listing__excerpt`; tanpa missing value; dataset sekunder hasil scraping portal Mobil123 (2025) dari [aliabdurrahman10/Used-Car-Analysis-in-Indonesia](https://github.com/aliabdurrahman10/Used-Car-Analysis-in-Indonesia). |
 | [testing/](testing/) (`run_all.py` + `1_data_validation.py` s.d. `5_model_xai_validation.py`, panduan di [README Fase 5](README.md#fase-5-integrasi-dan-pengujian)) | **Testing Suite Modular**: 5 skrip flat tanpa subdirektori. Metode, hasil, dan matriks XAI WAJIB terpusat di README Fase 5 — file laporan terpisah dilarang. |
-| [docs/figures/](docs/figures/) | **Aset Gambar Laporan**: `bab4/` berisi 18 PNG RGBA transparan untuk Gambar 4.1-4.18. Dua belas diagram aktivitas UC1-UC12 (Gambar 4.3-4.14) tersedia sebagai PNG dengan nama file sesuai aktivitas dan Mermaid inline di README §4.2.1. `views/` berisi 10 tangkapan layar antarmuka (Gambar 4.19-4.28) di README §4.5.2. Dua PNG aktivitas lama tanpa swimlane tetap disimpan sebagai aset arsip berawalan `arsip-`. Caption dan penjelasan gambar tersentralisasi di README. |
+| [docs/figures/](docs/figures/) | **Aset Gambar Laporan**: `bab4/` berisi 13 PNG RGBA transparan untuk Gambar 4.1-4.13. Tujuh diagram aktivitas UC1-UC7 (Gambar 4.3-4.9, tanpa relasi include/extend) tersedia sebagai PNG dengan nama file sesuai aktivitas dan Mermaid inline di README §4.2.1. `views/` berisi 10 tangkapan layar antarmuka (Gambar 4.14-4.23) di README §4.5.2. Dua PNG aktivitas lama tanpa swimlane tetap disimpan sebagai aset arsip berawalan `arsip-`. Caption dan penjelasan gambar tersentralisasi di README. |
 
 ---
 
@@ -146,10 +146,10 @@ Metode baku (detail perintah di [README Fase 5](README.md#fase-5-integrasi-dan-p
 - **Data Validation** (`testing/1_data_validation.py`): `profile_dataset.py` -> `rows=22679`, 14 kolom, `missing=0`, `Bekas+Used=21553`, korelasi `KM_1-KM_2 ~0.999`; quality check duplikat/batas/teks-baseline; aturan tolak ETL (`etl_service.py:11-55`) untuk header hilang, `Baru`, year/km/price/kategori/mode invalid.
 - **Backend unit test (Pytest, SQLite)**: `cd backend && python -m pytest tests -q` -> `17 passed`; preprocessing (`pd.Categorical`, asing -> `pd.NA`), prediction service (fallback `km_1 ?? km_2`, `max(0,round)`, log best-effort), SHAP service (`predict_row` 6 fitur sort `abs(shap)`), repository roundtrip, schema validation (422/extra-forbid); plus `compileall` + `git diff --check` bersih dan `formatCurrency.js`.
 - **API test**: `GET /health` (200/`xgb-v1`, 503 bila model down), valid prediction request (200, 6 fitur, `IDR`), invalid categorical input (asing -> 200 missing-category), invalid numeric input (422), model unavailable scenario, ETL upload update/replace vs 400, `GET /predictions/{id}` roundtrip, `models/active`, `developer/overview`, `stats/dataset`.
-- **Frontend test**: `npm run build` dua entry terisolasi, 0 emoji, tanpa hardcode; form validation, loading state, error state, prediction rendering, SHAP chart rendering; UC1-UC12; responsif 768px; keyboard-friendly; WCAG AA.
+- **Frontend test**: `npm run build` dua entry terisolasi, 0 emoji, tanpa hardcode; form validation, loading state, error state, prediction rendering, SHAP chart rendering; UC1-UC7; responsif 768px; keyboard-friendly; WCAG AA.
 - **Integration test**: React → Nginx → FastAPI → XGBoost → SHAP → PostgreSQL; Docker E2E (`compose config/up/ps` + curl health/predict/overview); isolasi `:80` vs `127.0.0.1:8081`; `model_version` tertelusur ke baris `predictions` (JSONB).
 - **Model & XAI gate**: 6 file artifact; baseline `MAE=25446042, RMSE=52997228.34, MAPE=8.397%, R2=0.9371, n_test=4311`; retrain seed 42 -> `R2>=0.93, MAPE<=9%`; additivitas `|base+sum(shap)-price|<=Rp1.000`; latensi < `INFERENCE_TIMEOUT_S`; 5 skenario (tipikal/km-ekstrem/tahun-tua/asing/fallback).
-- **Hasil resmi 13 Okt 2026 (commit `e96a380`)**: 6/6 PASS, 0 FAIL, 0 SKIPPED — Data (0 null/duplikat, 8 kasus ETL), Unit (`17 passed` 1.29s), Integration (isolasi port terkonfirmasi), Functional (build 1.37s, 0 emoji, UC1-UC12), XAI (retrain `R2=0.9364, MAPE=8.19%`, residu maks Rp116, latensi maks 14.5 ms). Verdict: **GO**.
+- **Hasil resmi 13 Okt 2026 (commit `e96a380`)**: 6/6 PASS, 0 FAIL, 0 SKIPPED — Data (0 null/duplikat, 8 kasus ETL), Unit (`17 passed` 1.29s), Integration (isolasi port terkonfirmasi), Functional (build 1.37s, 0 emoji, UC1-UC7), XAI (retrain `R2=0.9364, MAPE=8.19%`, residu maks Rp116, latensi maks 14.5 ms). Verdict: **GO**.
 - **Acceptance criteria (§20)**: dataset tervalidasi, preprocessing jalan tanpa manual intervention, XGBoost terlatih & tersimpan sebagai artifact, prediction pada test set, MAE/RMSE/MAPE/R² terhitung, SHAP global + local dibuat, endpoint prediction berjalan, ReactJS mengirim input & menampilkan predicted price + SHAP explanation, PostgreSQL menyimpan dataset metadata + prediction log, semua service jalan dengan `docker compose up`, `model_version` dapat ditelusuri dari prediction response.
 
 ---
@@ -356,7 +356,7 @@ di [README Fase 5](README.md#fase-5-integrasi-dan-pengujian); skrip di
 Hasil resmi 13 Okt 2026 (commit `e96a380`): 6/6 kategori PASS, 0 FAIL —
 Data (22679 baris, 21553 Bekas/Used, korelasi 0.998979), Unit (17 passed 1.29s),
 Integration (isolasi `:80`/`:8081` terkonfirmasi), Functional (build 1.37s,
-UC1-UC12), XAI (6 artifact utuh, retrain `R2=0.9364/MAPE=8.19%`, 5 kasus residu
+UC1-UC7), XAI (6 artifact utuh, retrain `R2=0.9364/MAPE=8.19%`, 5 kasus residu
 <= Rp116, latensi <= 14.5 ms). Verdict: **GO**.
 
 CP dianggap selesai ketika dataset tervalidasi, pipeline native categorical dapat
