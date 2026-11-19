@@ -90,7 +90,9 @@ Route handler tidak boleh mengakses database langsung — gunakan service/reposi
 - `GET  /health` — `{"status": "ok", "model_version": "xgb-v1"}`
 - `POST /predictions` — request `{brand, brand_type, machine_type, location, year, km_1, km_2}`; response `{prediction_id, model_version, predicted_price, currency: "IDR", explanation: {base_value, features: [{feature, value, shap_value}]}}`
 - `GET  /models/active` — metadata model aktif
-- `GET  /predictions/{prediction_id}` — detail input + prediction + model version + explanation
+- `GET  /predictions/{prediction_id}` — detail input + prediction + model version + explanation; hanya melalui port developer 8081
+
+Pada Docker ingress, port 80 hanya membuka API yang dipakai User Portal (`/health`, `POST /predictions`, `/models/active`, `/stats/dataset`). API administratif, daftar model, dan detail prediction mengembalikan 404 di port 80 dan tetap tersedia melalui port developer 8081.
 
 Request `POST /predictions` memakai field lowercase `km_1`, `km_2` (API) yang dipetakan ke kolom dataset `KM_1`, `KM_2`.
 
@@ -145,9 +147,9 @@ Metode baku (detail perintah di [README Fase 5](README.md#fase-5-integrasi-dan-p
 - **Pre-task wajib**: `git log -n 10 --oneline`, `git status --short`, `git diff --check`; baca `AGENTS.md` + `README.md` + `.env.example` + header `dataset.csv`. Jangan timpa `artifacts/.../xgb-v1/` (retrain uji ke `ARTIFACT_ROOT` temp).
 - **Data Validation** (`testing/1_data_validation.py`): `profile_dataset.py` -> `rows=22679`, 14 kolom, `missing=0`, `Bekas+Used=21553`, korelasi `KM_1-KM_2 ~0.999`; quality check duplikat/batas/teks-baseline; aturan tolak ETL (`etl_service.py:11-55`) untuk header hilang, `Baru`, year/km/price/kategori/mode invalid.
 - **Backend unit test (Pytest, SQLite)**: `cd backend && python -m pytest tests -q` -> `17 passed`; preprocessing (`pd.Categorical`, asing -> `pd.NA`), prediction service (fallback `km_1 ?? km_2`, `max(0,round)`, log best-effort), SHAP service (`predict_row` 6 fitur sort `abs(shap)`), repository roundtrip, schema validation (422/extra-forbid); plus `compileall` + `git diff --check` bersih dan `formatCurrency.js`.
-- **API test**: `GET /health` (200/`xgb-v1`, 503 bila model down), valid prediction request (200, 6 fitur, `IDR`), invalid categorical input (asing -> 200 missing-category), invalid numeric input (422), model unavailable scenario, ETL upload update/replace vs 400, `GET /predictions/{id}` roundtrip, `models/active`, `developer/overview`, `stats/dataset`.
+- **API test**: `GET /health` (200/`xgb-v1`, 503 bila model down), valid prediction request (200, 6 fitur, `IDR`), invalid categorical input (asing -> 200 missing-category), invalid numeric input (422), model unavailable scenario, ETL upload update/replace vs 400, `GET /predictions/{id}` roundtrip melalui port 8081, API admin ditolak di port 80, `models/active` dan `stats/dataset` tetap publik.
 - **Frontend test**: `npm run build` dua entry terisolasi, 0 emoji, tanpa hardcode; form validation, loading state, error state, prediction rendering, SHAP chart rendering; UC1-UC7; responsif 768px; keyboard-friendly; WCAG AA.
-- **Integration test**: React → Nginx → FastAPI → XGBoost → SHAP → PostgreSQL; Docker E2E (`compose config/up/ps` + curl health/predict/overview); isolasi `:80` vs `127.0.0.1:8081`; `model_version` tertelusur ke baris `predictions` (JSONB).
+- **Integration test**: React → Nginx → FastAPI → XGBoost → SHAP → PostgreSQL; Docker E2E (`compose config/up/ps` + curl health/predict/overview); port 80 menolak API admin/detail prediction, port `127.0.0.1:8081` tetap menyediakan API developer; `model_version` tertelusur ke baris `predictions` (JSONB).
 - **Model & XAI gate**: 6 file artifact; baseline `MAE=25446042, RMSE=52997228.34, MAPE=8.397%, R2=0.9371, n_test=4311`; retrain seed 42 -> `R2>=0.93, MAPE<=9%`; additivitas `|base+sum(shap)-price|<=Rp1.000`; latensi < `INFERENCE_TIMEOUT_S`; 5 skenario (tipikal/km-ekstrem/tahun-tua/asing/fallback).
 - **Hasil resmi 13 Okt 2026 (commit `e96a380`)**: 6/6 PASS, 0 FAIL, 0 SKIPPED — Data (0 null/duplikat, 8 kasus ETL), Unit (`17 passed` 1.29s), Integration (isolasi port terkonfirmasi), Functional (build 1.37s, 0 emoji, UC1-UC7), XAI (retrain `R2=0.9364, MAPE=8.19%`, residu maks Rp116, latensi maks 14.5 ms). Verdict: **GO**.
 - **Acceptance criteria (§20)**: dataset tervalidasi, preprocessing jalan tanpa manual intervention, XGBoost terlatih & tersimpan sebagai artifact, prediction pada test set, MAE/RMSE/MAPE/R² terhitung, SHAP global + local dibuat, endpoint prediction berjalan, ReactJS mengirim input & menampilkan predicted price + SHAP explanation, PostgreSQL menyimpan dataset metadata + prediction log, semua service jalan dengan `docker compose up`, `model_version` dapat ditelusuri dari prediction response.
@@ -234,18 +236,18 @@ User Portal :80 (index.html)        Developer Portal :8081 (developer.html, loop
    - **Client Services & Hooks**: `services/api.js` (Axios/fetch wrapper dengan error/timeout handling), `hooks/usePrediction.js` (state machine inferensi), dan `utils/formatCurrency.js`.
 
 2. **Ingress & Security Layer (`infra/nginx/`)**:
-   - **Dual-Port Isolation**: Port 80 melayani User Portal dan mem-proxy `/api/` ke backend; memblokir `developer.html` dan aset developer dengan HTTP 404.
+   - **Dual-Port Isolation**: Port 80 melayani User Portal, mem-proxy API publik, dan membalas 404 untuk halaman/aset developer serta API administratif, daftar model, dan detail prediction.
    - **Loopback Developer Port**: Port 8081 di-bind ke `127.0.0.1` melayani Developer Portal, mem-proxy `/api/`, serta membuka Swagger UI (`/docs`, `/openapi.json`); memblokir `index.html`.
 
 3. **API & Web Gateway Layer (`backend/app/api/`, `backend/app/schemas/`)**:
    - **Lifespan Initialization (`backend/app/main.py`)**: Startup memuat tabel via SQLAlchemy, memanaskan model aktif di `ModelManager`, dan mengeksekusi seed otomatis (metadata/listings) bila aktif.
    - **Modular Route Handlers**:
      - `routes_health.py`: Probe liveness/readiness (`GET /health`).
-     - `routes_prediction.py`: Eksekusi prediksi + XAI (`POST /predictions`) dan audit log (`GET /predictions/{id}`).
-     - `routes_model.py`: Metadata model aktif (`GET /models/active`) dan katalog versi model (`GET /models`).
-     - `routes_dataset.py`: Streaming CSV upload (`POST /datasets/upload`) dan metadata (`GET /datasets`, `GET /datasets/{id}`).
-     - `routes_etl.py`: Riwayat pekerjaan ETL (`GET /etl/jobs`).
-     - `routes_developer.py`: Agregasi diagnostik sistem untuk Developer Overview (`GET /developer/overview`).
+     - `routes_prediction.py`: Prediksi + XAI (`POST /predictions`) dan detail audit (`GET /predictions/{id}`, port 8081 saja).
+     - `routes_model.py`: Model aktif (`GET /models/active`, publik) dan katalog versi (`GET /models`, port 8081 saja).
+     - `routes_dataset.py`: Upload CSV dan metadata dataset, hanya melalui port 8081.
+     - `routes_etl.py`: Riwayat pekerjaan ETL (`GET /etl/jobs`), port 8081 saja.
+     - `routes_developer.py`: Overview sistem (`GET /developer/overview`), port 8081 saja.
      - `routes_stats.py`: Statistik listing terfilter (`GET /stats/dataset`).
    - **Schema Boundary**: Validasi request dan serialisasi response via Pydantic model (`prediction.py`, `model.py`, `stats.py`) dengan batas rentang nilai data yang ketat.
 
@@ -306,15 +308,17 @@ Base URL: `/api/v1`
 |---|---|---|
 | GET | `/health` | status backend dan model |
 | POST | `/predictions` | estimasi + explanation + model version |
-| GET | `/predictions/{id}` | detail prediction log |
-| GET | `/models/active` | model aktif dan metrik |
-| GET | `/models` | seluruh model version |
-| POST | `/datasets/upload` | validasi dan ETL CSV multipart |
-| GET | `/datasets` | daftar dataset dan ETL job terbaru |
-| GET | `/datasets/{id}` | detail dataset dan job |
-| GET | `/etl/jobs` | riwayat ETL |
-| GET | `/developer/overview` | overview sistem Developer Portal |
-| GET | `/stats/dataset` | statistik listing dan histogram |
+| GET | `/predictions/{id}` | detail prediction log, port 8081 saja |
+| GET | `/models/active` | model aktif dan metrik, publik |
+| GET | `/models` | seluruh model version, port 8081 saja |
+| POST | `/datasets/upload` | validasi dan ETL CSV multipart, port 8081 saja |
+| GET | `/datasets` | daftar dataset dan ETL job terbaru, port 8081 saja |
+| GET | `/datasets/{id}` | detail dataset dan job, port 8081 saja |
+| GET | `/etl/jobs` | riwayat ETL, port 8081 saja |
+| GET | `/developer/overview` | overview sistem Developer Portal, port 8081 saja |
+| GET | `/stats/dataset` | statistik listing dan histogram, publik |
+
+Port 80 membalas 404 untuk API administratif, daftar model, dan detail prediction. API Developer tetap tersedia melalui port 8081 loopback.
 
 Request prediction memakai `brand`, `brand_type`, `machine_type`, `location`,
 `year`, `km_1`, dan `km_2`. Minimal satu kilometer harus diisi. Output price
@@ -335,14 +339,14 @@ retraining otomatis.
 PostgreSQL menyimpan `datasets`, `etl_jobs`, `listings`, `model_versions`,
 `model_metrics`, dan `predictions`. Artifact model di-mount read-only. PostgreSQL
 tidak dipublish ke public network. Nginx mempublikasikan User Portal pada port
-80 dan Developer Portal hanya melalui `127.0.0.1:${DEVELOPER_PORT:-8081}`.
+80 dan Developer Portal hanya melalui `127.0.0.1:${DEVELOPER_PORT:-8081}`. Port
+80 membatasi API administratif; endpoint tersebut hanya tersedia pada port 8081.
 
 ```text
 docker compose up -d --build
 User Portal:      http://localhost/
 Developer Portal: http://localhost:8081/
 Swagger:          http://localhost:8081/docs
-pgAdmin:          http://localhost:5050
 ```
 
 ## Testing and Acceptance

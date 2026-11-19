@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Suite 3: Integration Testing (REST API, Multipart ETL, & Nginx Isolation)."""
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 
 def get_json(url):
     req = urllib.request.Request(url)
@@ -30,8 +30,14 @@ def test_3_1_api_endpoints():
     assert pred["model_version"] == "xgb-v1", "Model version tidak sesuai"
 
     pred_id = pred["prediction_id"]
-    s, get_pred = get_json(f"http://localhost/api/v1/predictions/{pred_id}")
-    assert s == 200 and get_pred["prediction_id"] == pred_id, "Pengambilan riwayat prediksi gagal"
+    try:
+        get_json(f"http://localhost/api/v1/predictions/{pred_id}")
+    except urllib.error.HTTPError as e:
+        assert e.code == 404, f"Detail prediksi publik harus 404, didapat {e.code}"
+    else:
+        raise AssertionError("Detail prediksi tidak boleh tersedia di port publik")
+    s, get_pred = get_json(f"http://localhost:8081/api/v1/predictions/{pred_id}")
+    assert s == 200 and get_pred["prediction_id"] == pred_id, "Pengambilan riwayat prediksi via port developer gagal"
 
     s, active = get_json("http://localhost/api/v1/models/active")
     assert s == 200 and active.get("model_version") == "xgb-v1", "Metadata active model gagal"
@@ -42,12 +48,12 @@ def test_3_1_api_endpoints():
     s, stats = get_json("http://localhost/api/v1/stats/dataset")
     assert s == 200 and stats.get("total", 0) > 0, "Dataset stats gagal"
 
-    print(" PASS: GET health, POST predictions, GET predictions/{id}, active model, overview, stats 200 OK")
+    print(" PASS: Public prediction/detail API boundaries, active model, developer overview, and stats")
 
 def test_3_2_multipart_etl_upload():
     print("--- [3.2] Multipart CSV ETL Upload & Error Handling ---")
     boundary = "----TestBoundaryOtoValueIntegration"
-    def upload(filename, content, mode):
+    def upload(filename, content, mode, base_url="http://localhost:8081"):
         body = (
             f"--{boundary}\r\n"
             f'Content-Disposition: form-data; name="mode"\r\n\r\n'
@@ -57,9 +63,9 @@ def test_3_2_multipart_etl_upload():
             f"Content-Type: text/csv\r\n\r\n"
             f"{content}\r\n"
             f"--{boundary}--\r\n"
-        ).encode("utf-8")
+        ).encode()
         req = urllib.request.Request(
-            "http://localhost:8081/api/v1/datasets/upload",
+            f"{base_url}/api/v1/datasets/upload",
             data=body,
             headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}
         )
@@ -81,13 +87,16 @@ def test_3_2_multipart_etl_upload():
     s_bad_head, _ = upload("test.csv", "brand,price\nHonda,100", "update")
     assert s_bad_head == 400, f"Header rusak harus 400, didapat {s_bad_head}"
 
+    s_public, _ = upload("test.csv", csv_valid, "update", base_url="http://localhost")
+    assert s_public == 404, f"Upload dataset via port publik harus 404, didapat {s_public}"
+
     csv_all_baru = "brand,brand_type,machine_type,location,year,KM_1,KM_2,price,listing__type\nHonda,City,Automatic,Jakarta,2021,10,10,200,Baru"
     s_baru, _ = upload("test.csv", csv_all_baru, "update")
     assert s_baru == 400, f"CSV tanpa Bekas/Used harus 400, didapat {s_baru}"
 
     s_up, res_up = upload("test.csv", csv_valid, "update")
-    assert s_up == 200 and res_up.get("valid_rows") == 2, f"Upload update valid gagal: {res_up}"
-    print(" PASS: Multipart CSV validasi format, header rusak, mode invalid, dan valid append sukses")
+    assert s_up == 200 and isinstance(res_up, dict) and res_up.get("valid_rows") == 2, f"Upload update valid gagal: {res_up}"
+    print(" PASS: Upload publik ditolak; upload developer dan validasi ETL berjalan")
 
 def test_3_3_nginx_port_isolation():
     print("--- [3.3] Nginx Dual-Port Security Boundary Isolation ---")
@@ -103,12 +112,26 @@ def test_3_3_nginx_port_isolation():
     assert fetch_status("http://localhost/developer.html") == 404, "Port 80 HARUS memblokir developer.html (404)"
     assert fetch_status("http://localhost/assets/developer.js") == 404, "Port 80 HARUS memblokir aset developer (404)"
 
+    admin_api_paths = (
+        "/api/v1/datasets",
+        "/api/v1/datasets/upload",
+        "/api/v1/etl/jobs",
+        "/api/v1/developer/overview",
+        "/api/v1/models",
+    )
+    for path in admin_api_paths:
+        assert fetch_status(f"http://localhost{path}") == 404, f"Port 80 HARUS memblokir {path} (404)"
+
     # Port 8081 (Loopback Developer)
     assert fetch_status("http://localhost:8081/") == 200, "Port 8081 harus melayani developer.html"
     assert fetch_status("http://localhost:8081/index.html") == 404, "Port 8081 HARUS memblokir index.html (404)"
     assert fetch_status("http://localhost:8081/docs") == 200, "Port 8081 harus mengekspos Swagger UI (/docs)"
+    for path in admin_api_paths:
+        if path.endswith("/upload"):
+            continue
+        assert fetch_status(f"http://localhost:8081{path}") == 200, f"Port 8081 harus mengizinkan {path}"
 
-    print(" PASS: Isolasi Port 80 publik vs Port 8081 loopback terverifikasi mutual 404")
+    print(" PASS: Port 80 memblokir UI dan API developer; port 8081 mengizinkan fungsi developer")
 
 if __name__ == "__main__":
     test_3_1_api_endpoints()

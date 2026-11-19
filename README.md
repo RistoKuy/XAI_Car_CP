@@ -141,8 +141,8 @@ Codebase dirancang dengan arsitektur berlapis (*layered architecture*) yang memi
                                          v
 +-----------------------------------------------------------------------------------+
 | 2. INGRESS & REVERSE PROXY LAYER (infra/nginx/)                                   |
-|    - Port 80 (Publik): Serves User SPA + Proxy /api/ -> FastAPI (Blokir dev 404)  |
-|    - Port 8081 (127.0.0.1 Loopback): Serves Dev SPA + Swagger /docs + Proxy /api/ |
+|    - Port 80: User SPA + API publik; blokir aset dan API administratif (404)     |
+|    - Port 8081: Dev SPA + API developer + Swagger, bind 127.0.0.1                |
 +-----------------------------------------------------------------------------------+
                                          |  Reverse Proxy :8000
                                          v
@@ -183,18 +183,18 @@ Codebase dirancang dengan arsitektur berlapis (*layered architecture*) yang memi
 - **Client Service & State Management**: Modul `services/api.js` membungkus fetch API dengan penanganan timeout, `hooks/usePrediction.js` mengelola state siklus inferensi (idle, loading, success, error), dan `utils/formatCurrency.js` memformat representasi mata uang Rupiah.
 
 #### 2. Lapisan Ingress & Reverse Proxy (`infra/nginx/`)
-- **Port 80 (Public Gateway)**: Menyajikan static files User Portal (`index.html`), mem-proxy request rute `/api/` ke container backend (`fastapi:8000`), dan secara eksplisit memblokir request ke `developer.html` atau `/assets/developer*` dengan status HTTP 404.
-- **Port 8081 (Loopback Developer Gateway)**: Dibatasi secara ketat hanya pada interface loopback `127.0.0.1`. Menyajikan Developer Portal (`developer.html`), dokumentasi Swagger UI (`/docs`, `/openapi.json`), dan mem-proxy `/api/`. Request ke `index.html` publik diblokir dengan status HTTP 404.
+- **Port 80 (Public Gateway)**: Menyajikan User Portal (`index.html`) dan API publik yang dibutuhkan portal (`/health`, `POST /predictions`, `/models/active`, `/stats/dataset`). Nginx membalas 404 untuk `developer.html`, aset developer, serta API administratif dan detail prediction.
+- **Port 8081 (Loopback Developer Gateway)**: Dibatasi pada interface loopback `127.0.0.1`. Menyajikan Developer Portal (`developer.html`), Swagger UI (`/docs`, `/openapi.json`), dan seluruh API developer. Request ke `index.html` publik dibalas 404.
 
 #### 3. Lapisan API & Web Gateway (`backend/app/api/`, `backend/app/schemas/`)
 - **Lifespan Lifecycle Controller (`backend/app/main.py`)**: Mengelola inisialisasi aplikasi secara tersentralisasi saat proses startup: memastikan tabel PostgreSQL terbuat via SQLAlchemy, memuat model ML aktif ke memory lewat `ModelManager`, dan mengeksekusi auto-seed metadata dataset/model/listing (bila diaktifkan via `SEED_ON_STARTUP`).
 - **Modular Route Handlers**:
   - `routes_health.py`: Healthcheck endpoint (`GET /health`) yang memverifikasi kesiapan model aktif.
-  - `routes_prediction.py`: Endpoint inferensi tunggal (`POST /predictions`) dan pembacaan detail riwayat prediksi (`GET /predictions/{id}`).
-  - `routes_model.py`: Endpoint informasi model aktif (`GET /models/active`) dan katalog seluruh versi model (`GET /models`).
-  - `routes_dataset.py`: Multipart upload streaming dataset CSV (`POST /datasets/upload`) serta metadata dataset (`GET /datasets`, `GET /datasets/{id}`).
-  - `routes_etl.py`: Riwayat audit eksekusi ETL (`GET /etl/jobs`).
-  - `routes_developer.py`: Agregasi ringkasan diagnostik backend, database, model, dan status ETL (`GET /developer/overview`).
+  - `routes_prediction.py`: Endpoint inferensi publik (`POST /predictions`) dan detail riwayat prediksi (`GET /predictions/{id}`, hanya via port 8081).
+  - `routes_model.py`: Metadata model aktif (`GET /models/active`, publik) dan katalog versi (`GET /models`, hanya via port 8081).
+  - `routes_dataset.py`: Upload CSV (`POST /datasets/upload`) dan metadata dataset (`GET /datasets`, `GET /datasets/{id}`), hanya via port 8081.
+  - `routes_etl.py`: Riwayat audit ETL (`GET /etl/jobs`), hanya via port 8081.
+  - `routes_developer.py`: Ringkasan diagnostik (`GET /developer/overview`), hanya via port 8081.
   - `routes_stats.py`: Endpoint metrik statistik agregat listing mobil bekas (`GET /stats/dataset`).
 - **Schema Contracts (`backend/app/schemas/`)**: Pydantic models mendefinisikan validasi batas ketat (`1930 <= year <= 2026`, `km >= 0`, `price >= 0`) dan serialisasi JSON terstruktur.
 
@@ -287,7 +287,7 @@ User biasa (jaringan)
 http://<host>              (nginx :80, publik)
   |-- /        -> User Portal (frontend :80, index.html)
   |-- /api/    -> backend (FastAPI + Uvicorn :8000)
-  (developer.html + chunk /assets/developer* diblokir 404 di port ini)
+  (developer.html, chunk /assets/developer*, dan API administratif diblokir 404 di port ini)
 
 Developer (localhost / SSH tunnel)
   |
@@ -300,8 +300,10 @@ http://localhost:8081      (nginx :8081, bind 127.0.0.1 saja)
 
 backend -> postgres :5432 (tidak diekspos ke host; volume postgres_data)
 backend -> artifact model (bind-mount read-only)
-pgAdmin langsung di :5050 (tanpa login, mode passwordless)
 ```
+
+Inspeksi basis data dilakukan lewat CLI:
+`docker compose exec postgres psql -U app -d carprice`.
 
 | Service  | Image / Build        | Akses host                        | Peran                                   |
 |----------|----------------------|-----------------------------------|-----------------------------------------|
@@ -309,7 +311,6 @@ pgAdmin langsung di :5050 (tanpa login, mode passwordless)
 | frontend | build `./frontend`   | via nginx (`:80`/`:8081` internal)| Dua entry: `index.html` + `developer.html` |
 | backend  | build `./backend`    | via nginx                         | FastAPI + XGBoost + SHAP + ETL          |
 | postgres | `postgres:16-alpine` | -                                 | Database + metadata + log               |
-| pgadmin  | `dpage/pgadmin4:9`   | `:5050`                           | Administrasi database                   |
 
 ## Fase 3: Persiapan Data dan Machine Learning
 
@@ -387,14 +388,14 @@ dataset + versi model + metrik. Kode:
 |---|---|---|
 | GET | `/health` | `{"status": "ok", "model_version": "xgb-v1"}` (503 bila model belum termuat) |
 | POST | `/predictions` | Prediksi + explanation, log ke PostgreSQL (best-effort) |
-| GET | `/predictions/{id}` | Detail input + prediksi + explanation |
+| GET | `/predictions/{id}` | Detail input + prediksi + explanation (port 8081 saja) |
 | GET | `/models/active` | Metadata model aktif + metrik per split |
-| GET | `/models` | Daftar seluruh versi model + metrik (Model Management) |
-| POST | `/datasets/upload` | Upload CSV multipart (`file` + `mode` update/replace), langsung ETL |
-| GET | `/datasets` | Daftar dataset + 5 ETL job terakhir per dataset |
-| GET | `/datasets/{id}` | Detail dataset + 20 riwayat ETL |
-| GET | `/etl/jobs` | Riwayat ETL job (`?limit`, default 20) |
-| GET | `/developer/overview` | Agregat backend + database + dataset/model aktif + ETL readiness |
+| GET | `/models` | Daftar seluruh versi model + metrik (port 8081 saja) |
+| POST | `/datasets/upload` | Upload CSV multipart (`file` + `mode` update/replace), port 8081 saja |
+| GET | `/datasets` | Daftar dataset + 5 ETL job terakhir per dataset (port 8081 saja) |
+| GET | `/datasets/{id}` | Detail dataset + 20 riwayat ETL (port 8081 saja) |
+| GET | `/etl/jobs` | Riwayat ETL job (`?limit`, default 20), port 8081 saja |
+| GET | `/developer/overview` | Agregat backend + database + dataset/model aktif + ETL readiness, port 8081 saja |
 | GET | `/stats/dataset` | Statistik database listings (total, harga, tahun, km, merek, lokasi, histogram; filter opsional `brand`, `location`, `machine_type`, `year_min`, `year_max`) |
 
 Contoh request prediksi:
@@ -412,6 +413,8 @@ Contoh response:
  "explanation": {"base_value": 313370208,
    "features": [{"feature": "year", "value": 2021, "shap_value": 25150464}] } }
 ```
+
+Pada deployment Docker, port 80 mengembalikan 404 untuk API administratif dan `GET /predictions/{id}`. Endpoint tersebut tetap tersedia pada port developer 8081 yang hanya terikat ke loopback. API publik tetap mencakup health, prediksi, model aktif, dan statistik dataset.
 
 Validasi Pydantic: `1930 <= year <= 2026`, `0 <= km <= 1.000.000` (batas dari
 distribusi data, dapat diubah via env `MIN_YEAR`/`MAX_YEAR`/`MAX_KM`), minimal
@@ -433,10 +436,11 @@ shell gelap + badge DEV, 6 modul dengan navigasi sendiri:
 | Prediction Playground | `#/developer/playground` | Uji prediksi + SHAP memakai komponen yang sama dengan User Portal |
 | API Explorer | `#/developer/api` | Katalog endpoint + tombol ke Swagger UI (`/docs`, same-origin) |
 
-Isolasi dari user biasa berlapis: port berbeda + bind loopback, entry build
-terpisah (bundle user terbukti bersih dari kode developer), nginx memblokir
-silang (`developer.html` 404 di port 80, `index.html` 404 di port 8081), tanpa
-link dari User Portal ke Developer Portal, dan `noindex, nofollow`.
+Isolasi dari user biasa: port developer di-bind ke loopback, entry build
+terpisah, Nginx memblokir silang halaman dan aset, serta port 80 membalas 404
+untuk API administratif dan detail prediction. Developer API tetap tersedia
+melalui port 8081. User Portal tidak memiliki link ke portal developer dan
+memakai `noindex, nofollow` pada entry developer.
 
 ### User Portal (ReactJS)
 
@@ -458,7 +462,7 @@ informatif (sebab + aksi), responsif dan keyboard-only friendly (skip link,
 kontrol native, fokus terlihat). API base via `VITE_API_URL`, default
 same-origin `/api/v1`. Bundle user tidak memuat rute/navigasi developer.
 
-### Database (PostgreSQL + pgAdmin)
+### Database (PostgreSQL)
 
 Enam tabel sesuai ERD: `datasets` (metadata + status + counter valid/ditolak),
 `etl_jobs` (riwayat eksekusi ETL: mode, file, total/valid/ditolak, status),
@@ -478,8 +482,8 @@ set DATABASE_URL=postgresql+psycopg://app@HOST:5432/carprice
 python ml/scripts/seed_db.py
 ```
 
-pgAdmin tanpa login di `http://localhost:5050`, server `carprice (local)` sudah
-terdaftar otomatis.
+Inspeksi manual memakai CLI:
+`docker compose exec postgres psql -U app -d carprice`.
 
 ### Struktur repo
 
@@ -492,6 +496,7 @@ frontend/                  # ReactJS, dua entry: index.html (user) + developer.h
     pages/                 # Home/Prediction/DataDashboard + developer/ (6 modul)
     services/hooks/utils/  # api.js, usePrediction.js, formatCurrency.js
   nginx.conf               # dua server: :80 user, :8081 developer (+ blokir silang)
+  .dockerignore            # kecualikan node_modules dan dist dari build context
 backend/                   # FastAPI (app/api, core, db, repositories, schemas, services)
   app/api/                 # routes_health/prediction/model/dataset/etl/developer/stats
   app/services/            # prediction_service, model_manager, stats_service, etl_service
@@ -506,7 +511,6 @@ ml/scripts/                # profile_dataset, train_baseline, seed_db
 data/processed/            # hasil filter (regenerable, di-ignore git)
 artifacts/models/          # artifact versioned xgb-v1
 infra/nginx/               # reverse proxy dua port (80 publik + 8081 loopback)
-infra/pgadmin/             # servers.json praregistrasi
 docs/figures/              # aset gambar laporan: bab4/*.png (diagram) + views/**/*.jpeg
 docker-compose.yml
 .env.example
@@ -538,9 +542,9 @@ testing/
 - Menguji fungsionalitas pemformatan mata uang Rupiah pada `frontend/src/utils/formatCurrency.js`.
 
 ### Suite 3: Integration Testing (`testing/3_integration_testing.py`)
-- Menguji integrasi end-to-end REST API live di port 80 dan 8081 (`GET /health`, `POST /predictions`, `GET /predictions/{id}`, `GET /models/active`, `GET /developer/overview`, `GET /stats/dataset`).
-- Menguji penanganan error dan upload multipart CSV (`mode=update` append, penolakan mode invalid 400, header rusak 400, CSV tanpa listing Bekas 400).
-- Memverifikasi isolasi keamanan Nginx dua port: Port 80 publik memblokir aset developer (HTTP 404), Port 8081 loopback memblokir index publik (HTTP 404) dan membuka Swagger UI (`/docs`).
+- Menguji integrasi REST API di kedua port: API user tetap tersedia di port 80, sedangkan `GET /predictions/{id}` dan endpoint administratif hanya tersedia di port 8081.
+- Menguji upload CSV: port 80 menolak upload dengan 404, port 8081 menerima upload valid, dan data dengan mode/header/listing tidak valid ditolak dengan 400.
+- Memverifikasi isolasi Nginx: port 80 memblokir halaman/aset developer dan API administratif (HTTP 404); port 8081 loopback menyediakan API developer serta Swagger UI dan memblokir index publik (HTTP 404).
 
 ### Suite 4: Functional Testing (`testing/4_functional_testing.py`)
 - Memverifikasi proses build produksi Vite multi-page (`npm run build`) yang menghasilkan dua bundle terpisah: `index.html` (User Portal) dan `developer.html` (Developer Portal).
@@ -560,7 +564,7 @@ Pre-task: `git log -n 10 --oneline`, `git status --short`, `git diff --check`; b
 
 - **Suite 1 — Data Validation**: `python ml/scripts/profile_dataset.py` harus menghasilkan `rows=22679`, 14 kolom, `missing=0`, `Bekas+Used=21553` (`Baru=1126` dibuang), korelasi `KM_1-KM_2 ~0.999` (pakai `km_1`), `brand~51, brand_type~2002, location~22`, `year 1975-2025`. Quality check independen: duplikat=0, `price<=0`=0, year/km di luar batas=0, kolom teks mentah tidak jadi fitur. Aturan ETL (`etl_service.py:11-55`): tolak header hilang, `listing__type=Baru`, year/km/price invalid, kategori kosong, mode selain update/replace.
 - **Suite 2 — Unit Testing**: `cd backend && python -m pytest tests -q` (SQLite isolasi via `conftest.py`) — baseline `17 passed`. Cakupan: `CategoricalPreprocessor` (kategori asing -> `pd.NA`), `ModelManager.predict_row` (6 fitur, sort `abs(shap)`), `PredictionService` (fallback `km_1 ?? km_2`, `price=max(0,round)`, log best-effort), skema Pydantic (`year`/`km` invalid -> 422, `km_1=km_2=None` -> 422, `extra=forbid`), `normalize_mode`/`_parse_row`, repository roundtrip, `formatCurrency.js`. Verifikasi statis `compileall` + `git diff --check` bersih.
-- **Suite 3 — Integration Testing**: payload kanonis `{"brand":"Honda","brand_type":"City 1.5 E Sedan","machine_type":"Automatic","location":"DKI Jakarta","year":2021,"km_1":45000,"km_2":45000}`. `GET /health` -> 200 (`xgb-v1`) / 503 bila model belum load; `POST /predictions` -> 200 (6 fitur, `currency=IDR`); `GET /predictions/{id}` roundtrip; `GET /models/active` ada `metrics.test`; ETL `update` -> `append valid_rows=2`, `replace` -> `replaced=true`; header/mode/tipe salah dan semua-`Baru` -> 400; kategori asing -> 200, tipe/numerik salah -> 422. Docker E2E: `compose config/up/ps`, curl health/predict/overview, postgres privat, artifact read-only, `model_version` tertelusur ke baris `predictions`. Nginx: `:80` 404 untuk `developer.html`, `:8081` 404 untuk `index.html` + buka `/docs`.
+- **Suite 3 — Integration Testing**: payload kanonis `{"brand":"Honda","brand_type":"City 1.5 E Sedan","machine_type":"Automatic","location":"DKI Jakarta","year":2021,"km_1":45000,"km_2":45000}`. `GET /health` -> 200 (`xgb-v1`) / 503 bila model belum load; `POST /predictions` -> 200 (6 fitur, `currency=IDR`); detail `/predictions/{id}` -> 404 di port 80 dan roundtrip 200 di port 8081; `/datasets`, `/etl/jobs`, `/developer/overview`, dan `/models` hanya tersedia di port 8081; `/models/active` dan `/stats/dataset` tetap publik. Upload dataset publik -> 404; ETL `update` via port 8081 -> `append valid_rows=2`, `replace` -> `replaced=true`; header/mode/tipe salah dan semua-`Baru` -> 400; kategori asing -> 200, tipe/numerik salah -> 422. Docker E2E: `compose config/up/ps`, curl health/predict/overview, postgres privat, artifact read-only, `model_version` tertelusur ke baris `predictions`.
 - **Suite 4 — Functional Testing**: `npm run build` dua entry terisolasi (`developer-*.js` tidak bocor ke bundle publik), audit 0 emoji + tanpa hardcode di `frontend/src/`, matriks UC1-UC7 (User Umum: estimasi + SHAP, dashboard; Developer: estimasi via Playground, overview, upload dataset + ETL, riwayat ETL, models, API explorer), state kosong/loading/error informatif, responsif 768px, keyboard-friendly, kontras WCAG AA.
 - **Suite 5 — Model & XAI Validation**: kontrak 6 file artifact; baseline `MAE=25446042, RMSE=52997228.34, MAPE=8.397%, R2=0.9371, n_test=4311`. Retrain uji seed 42 ke dir temp: gate `R2>=0.93, MAPE<=9%`, toleransi ±10%. XAI via `predict_row` pada 5 skenario (tipikal, km ekstrem, tahun 1975, kategori asing, fallback km): 6 fitur, `base>0`, `price>=0`, additivitas `|base+sum(shap)-price|<=Rp1.000`, deterministik, latensi < `INFERENCE_TIMEOUT_S`. SHAP global opsional (`TreeExplainer` 200 baris -> shape `(200,6)`; skip di Python 3.13 = skipped bukan fail).
 
@@ -620,20 +624,19 @@ Semua endpoint, secret, dan parameter via environment (`.env`, contoh di
 **Mode default = passwordless lokal** (cukup `docker compose up`):
 
 - Postgres: `POSTGRES_HOST_AUTH_METHOD=trust`, tanpa password.
-- pgAdmin: desktop mode tanpa layar login, server terdaftar via `servers.json`.
 
 Bila butuh password (server bersama/produksi):
 
 1. Isi `POSTGRES_PASSWORD=...` dan `POSTGRES_HOST_AUTH_METHOD=scram-sha-256`.
 2. Samakan di `DATABASE_URL=postgresql+psycopg://app:<password>@postgres:5432/carprice`.
-3. Kembalikan pgAdmin ke mode login (hapus `PGADMIN_CONFIG_SERVER_MODE`) dan
-   daftarkan server manual (host `postgres`, user `app`, password sama).
 
 Variabel utama: `DATABASE_URL`, `POSTGRES_DB/USER/PASSWORD/HOST_AUTH_METHOD`,
-`PGADMIN_PORT/DEFAULT_EMAIL`, `MODEL_DIR`, `MODEL_VERSION`,
-`CORS_ORIGINS`, `INFERENCE_TIMEOUT_S`, `MAX_UPLOAD_MB`, `DEVELOPER_PORT`,
-`RANDOM_SEED`, `DATASET_PATH`, `SEED_ON_STARTUP`, `SEED_CSV_PATH`,
-`VITE_API_URL`, `VITE_API_TIMEOUT_MS`, `VITE_USER_PORTAL_URL`.
+`MODEL_DIR`, `MODEL_VERSION`, `CORS_ORIGINS`, `INFERENCE_TIMEOUT_S`,
+`MAX_UPLOAD_MB`, `DEVELOPER_PORT`, `MIN_YEAR/MAX_YEAR/MAX_KM`, `RANDOM_SEED`,
+`DATASET_PATH`, `DATASET_NAME`, `DATASET_SOURCE`, `ARTIFACT_ROOT`,
+`SEED_ON_STARTUP`, `SEED_CSV_PATH`, `SEED_FALLBACK_CSV_PATH`. Variabel frontend
+(`VITE_API_URL`, `VITE_API_TIMEOUT_MS`, `VITE_USER_PORTAL_URL`) ada di
+`frontend/.env.example`.
 
 ### Deploy dan menjalankan
 
@@ -654,7 +657,7 @@ Akses:
 | Developer Portal | http://localhost:8081/ | Loopback-only (developer) |
 | Swagger UI | http://localhost:8081/docs | Via port developer |
 | API health | http://localhost/api/v1/health | Publik |
-| pgAdmin | http://localhost:5050 | Tanpa login |
+| API administratif | http://localhost:8081/api/v1/... | Loopback-only; port 80 membalas 404 |
 
 Uji cepat end-to-end:
 
@@ -671,14 +674,12 @@ curl -X POST http://localhost:8081/api/v1/datasets/upload -F "mode=replace" -F "
 ```
 
 Perintah umum: `docker compose logs -f backend`, `docker compose down`,
-`docker compose down -v` (hapus juga data postgres dan pgAdmin).
+`docker compose down -v` (hapus juga data postgres).
 
 Troubleshooting:
 
 - `backend` restart terus: cek `docker compose logs backend`; pastikan folder
   `artifacts/models/xgboost/xgb-v1/` ada (di-mount read-only).
-- `pgadmin` meminta login: pastikan `PGADMIN_CONFIG_SERVER_MODE=False` dan volume
-  `servers.json` termount; hapus volume `pgadmin_data` bila config lama tersimpan.
 - `postgres` menolak koneksi: tunggu healthcheck (`pg_isready`), cek
   `POSTGRES_HOST_AUTH_METHOD`.
 - Developer Portal tidak bisa diakses dari jaringan lain: memang disengaja
@@ -791,7 +792,7 @@ penyimpanan SSD NVMe untuk menjalankan kontainer Docker serta pelatihan model.
 JavaScript/Node.js untuk frontend, FastAPI dan Uvicorn sebagai ASGI server,
 ReactJS dengan Vite *multi-page build*, Tailwind CSS, XGBoost
 (`enable_categorical=true`), pandas, NumPy, Joblib, Pytest, PostgreSQL 16,
-SQLAlchemy 2.0 ORM, pgAdmin 4, Nginx Alpine, serta Docker Engine dan Docker
+SQLAlchemy 2.0 ORM, Nginx Alpine, serta Docker Engine dan Docker
 Compose v2.
 
 **Dataset dan artefak.** Dataset transaksi mobil bekas `dataset.csv` dengan
@@ -809,7 +810,7 @@ Tabel 3.2 Instrumen penelitian
 | Backend | FastAPI, Uvicorn, Pydantic |
 | Frontend | ReactJS (Vite multi-page), Tailwind CSS |
 | Machine Learning | XGBoost (native categorical), pandas, NumPy, Joblib, scikit-learn, Pytest |
-| Basis data | PostgreSQL 16, SQLAlchemy 2.0, pgAdmin 4 |
+| Basis data | PostgreSQL 16, SQLAlchemy 2.0 |
 | Infrastruktur | Nginx Alpine, Docker Engine, Docker Compose v2 |
 | Data | `dataset.csv` (22.679 baris / 21.553 terfilter), artefak `xgb-v1` (6 file) |
 
@@ -1200,7 +1201,7 @@ tetap terkendali dan fokus pada tujuan penelitian:
 ### 4.3.1 Hardware
 
 Perangkat keras yang digunakan untuk pelatihan model, pengujian sistem, dan
-menjalankan lima kontainer Docker memiliki spesifikasi sebagai berikut:
+menjalankan empat kontainer Docker memiliki spesifikasi sebagai berikut:
 
 | Komponen | Spesifikasi | Fungsi |
 |---|---|---|
@@ -1219,7 +1220,7 @@ Tabel 4.3 Spesifikasi perangkat lunak sistem
 | Backend | FastAPI, Uvicorn, Pydantic | API dan validasi data |
 | Frontend | ReactJS (Vite multi-page), Tailwind CSS | Antarmuka dua portal |
 | ML | XGBoost, pandas, NumPy, scikit-learn, Joblib, Pytest | Pelatihan, inferensi, dan pengujian |
-| Basis data | PostgreSQL 16, SQLAlchemy 2.0, pgAdmin 4 | Penyimpanan dan administrasi |
+| Basis data | PostgreSQL 16, SQLAlchemy 2.0 | Penyimpanan dan administrasi |
 | Infrastruktur | Nginx Alpine, Docker Engine, Docker Compose v2 | Reverse proxy dan kontainerisasi |
 
 ### 4.3.3 Functional Requirement
@@ -1232,11 +1233,11 @@ Tabel 4.4 Kebutuhan fungsional (*Functional Requirement*)
 | FR-02 | Sistem menghitung estimasi harga memakai XGBoost dan mengembalikan `model_version` serta `currency`. | `POST /predictions` |
 | FR-03 | Sistem mengembalikan penjelasan SHAP per fitur dalam bentuk `base_value` dan daftar `shap_value`. | `POST /predictions` |
 | FR-04 | Sistem menyimpan log prediksi (`input_payload` dan `shap_payload`) ke PostgreSQL secara *best-effort*. | `POST /predictions` |
-| FR-05 | Sistem menampilkan detail prediksi berdasarkan `prediction_id`. | `GET /predictions/{id}` |
+| FR-05 | Sistem menampilkan detail prediksi berdasarkan `prediction_id` melalui port developer. | `GET /predictions/{id}` |
 | FR-06 | Sistem menampilkan metadata model aktif beserta metrik per split. | `GET /models/active` |
-| FR-07 | Sistem menampilkan katalog seluruh versi model dan metriknya. | `GET /models` |
-| FR-08 | Sistem memvalidasi dan memproses upload CSV dengan mode Update atau Replace. | `POST /datasets/upload` |
-| FR-09 | Sistem menyediakan daftar dataset dan riwayat job ETL. | `GET /datasets`, `GET /datasets/{id}`, `GET /etl/jobs` |
+| FR-07 | Sistem menampilkan katalog seluruh versi model dan metriknya melalui port developer. | `GET /models` |
+| FR-08 | Sistem memvalidasi dan memproses upload CSV dengan mode Update atau Replace melalui port developer. | `POST /datasets/upload` |
+| FR-09 | Sistem menyediakan daftar dataset dan riwayat job ETL melalui port developer. | `GET /datasets`, `GET /datasets/{id}`, `GET /etl/jobs` |
 | FR-10 | Sistem menyediakan overview diagnostik untuk Developer Portal. | `GET /developer/overview` |
 | FR-11 | Sistem menyediakan statistik agregat listing untuk dashboard. | `GET /stats/dataset` |
 | FR-12 | Sistem menyediakan endpoint kesehatan yang melaporkan kesiapan model. | `GET /health` |
@@ -1496,14 +1497,14 @@ Tabel 4.7 Ringkasan kontrak REST API `/api/v1`
 |---|---|---|---|
 | GET | `/health` | Pemeriksaan kesehatan layanan | Mengembalikan status kesiapan backend dan versi model aktif |
 | POST | `/predictions` | Perhitungan estimasi dan XAI | Menerima atribut mobil, mengembalikan estimasi harga dan nilai SHAP |
-| GET | `/predictions/{id}` | Audit riwayat prediksi | Menampilkan data input, prediksi, dan penjelasan berdasarkan ID |
-| GET | `/models/active` | Metadata model aktif | Menampilkan informasi konfigurasi model aktif dan skor evaluasinya |
-| GET | `/models` | Katalog seluruh versi model | Menampilkan daftar seluruh versi model pada registri beserta metrik |
-| POST | `/datasets/upload` | Upload dan ingestion data | Menerima berkas CSV multipart dan mengeksekusi pipeline ETL |
-| GET | `/datasets` | Daftar metadata dataset | Menampilkan riwayat dataset yang terdaftar beserta ringkasan status |
-| GET | `/datasets/{id}` | Rincian metadata dataset | Menampilkan detail statistik dataset tertentu dan log ETL terkait |
-| GET | `/etl/jobs` | Riwayat eksekusi ETL | Menampilkan daftar log audit pekerjaan pemrosesan data |
-| GET | `/developer/overview` | Ringkasan operasional sistem | Mengagregasi status koneksi backend, basis data, model, dan ETL |
+| GET | `/predictions/{id}` | Audit riwayat prediksi | Detail input, prediksi, dan penjelasan; port 8081 saja |
+| GET | `/models/active` | Metadata model aktif | Informasi model aktif dan metrik; tersedia untuk User Portal |
+| GET | `/models` | Katalog seluruh versi model | Daftar model dan metrik; port 8081 saja |
+| POST | `/datasets/upload` | Upload dan ingestion data | Upload CSV dan ETL; port 8081 saja |
+| GET | `/datasets` | Daftar metadata dataset | Riwayat dataset; port 8081 saja |
+| GET | `/datasets/{id}` | Rincian metadata dataset | Statistik dataset dan log ETL; port 8081 saja |
+| GET | `/etl/jobs` | Riwayat eksekusi ETL | Daftar log pekerjaan; port 8081 saja |
+| GET | `/developer/overview` | Ringkasan operasional sistem | Status backend, database, model, dan ETL; port 8081 saja |
 | GET | `/stats/dataset` | Statistik agregat listing | Mengembalikan metrik ringkasan, distribusi harga, transmisi, dan tahun |
 
 Untuk menjamin keamanan arsitektur, isolasi jaringan diterapkan menggunakan Nginx
@@ -1513,11 +1514,10 @@ Tabel 4.8 Topologi deployment dan isolasi jaringan
 
 | Layanan | Image dasar | Akses port host | Peran dan kebijakan isolasi |
 |---|---|---|---|
-| `nginx` | `nginx:alpine` | `:80` publik, `:8081` loopback | Reverse proxy dua gerbang: port 80 publik memblokir aset developer (HTTP 404), port 8081 hanya menerima request dari 127.0.0.1 dan membuka Swagger UI |
+| `nginx` | `nginx:alpine` | `:80` publik, `:8081` loopback | Port 80 memblokir aset dan API developer serta detail prediction (HTTP 404); port 8081 loopback melayani portal dan API developer |
 | `frontend` | Multi-stage Node / Nginx | Internal container | Menyajikan dua entry point terisolasi: `index.html` publik dan `developer.html` |
 | `backend` | `python:3.11-slim` | Internal container | Menjalankan FastAPI, runtime XGBoost, kalkulator Tree SHAP, dan parser ETL |
 | `postgres` | `postgres:16-alpine` | Jaringan internal Docker | Menyimpan 6 tabel relasional; tidak diekspos langsung ke port jaringan host |
-| `pgadmin` | `dpage/pgadmin4:9` | `:5050` (localhost) | Administrasi database grafis lokal dalam mode desktop passwordless |
 
 ### 4.4.4 Arsitektur Data dan Pipeline Machine Learning
 
@@ -1622,7 +1622,7 @@ Tabel 4.10 Rangkaian lima suite pengujian sistem
 |---|---|---|---|
 | Suite 1 | `1_data_validation.py` | Profiling dataset mentah dan kepatuhan aturan penolakan ETL | Memastikan 22.679 baris mentah, 21.553 baris Bekas/Used, korelasi jarak tempuh 0,999, serta verifikasi 8 skenario penolakan data invalid |
 | Suite 2 | `2_unit_testing.py` | Unit test backend Pytest dalam memori SQLite dan analisis statis | Menjalankan 17 uji unit backend (lolos 100%), kompilasi statis `compileall` bersih, dan uji pemformat mata uang Rupiah |
-| Suite 3 | `3_integration_testing.py` | Integrasi endpoint REST API live dan isolasi keamanan Nginx | Memastikan seluruh endpoint mengembalikan status HTTP 200, penolakan mode invalid (HTTP 400), serta isolasi silang port 80 dan 8081 |
+| Suite 3 | `3_integration_testing.py` | Integrasi endpoint REST API live dan isolasi keamanan Nginx | API user tetap tersedia di port 80; endpoint administratif/detail prediction diblokir 404 di port 80 dan tersedia di port 8081; upload publik ditolak, upload developer dan penolakan data invalid teruji |
 | Suite 4 | `4_functional_testing.py` | Verifikasi build produksi antarmuka dan matriks fungsi use case | Memverifikasi pemisahan chunk developer dari bundle publik, verifikasi 0 emoji, dan kepatuhan skenario use case UC1 sampai UC7 |
 | Suite 5 | `5_model_xai_validation.py` | Integritas artefak model, reproduksibilitas, dan aditivitas SHAP | Menjamin keberadaan 6 berkas artefak, keberhasilan retrain seed 42 ($R^2 \ge 0,93$, MAPE $\le 9\%$), dan residu SHAP $\le 	ext{Rp1.000}$ |
 
@@ -1640,7 +1640,7 @@ Repositori proyek memuat berkas-berkas utama yang mendefinisikan keseluruhan sis
 - `README.md`: Berkas dokumentasi utama yang memuat panduan komprehensif, arsitektur, spesifikasi teknis, dan laporan pengujian produk.
 - `dataset.csv`: Berkas dataset sekunder mentah berisi 22.679 baris data pasar mobil bekas hasil *scraping* portal Mobil123 pada tahun 2025 dari repositori https://github.com/aliabdurrahman10/Used-Car-Analysis-in-Indonesia.
 - `AGENTS.md`: Dokumen kontrak teknis, aturan rekayasa, dan panduan standar eksekusi.
-- `docker-compose.yml`: Berkas konfigurasi orkestrasi multi-kontainer Docker untuk lima
+- `docker-compose.yml`: Berkas konfigurasi orkestrasi multi-kontainer Docker untuk empat
   layanan utama.
 - `.env.example`: Berkas templat variabel lingkungan untuk konfigurasi sistem yang
   aman tanpa *hardcoding*.
@@ -1669,6 +1669,7 @@ frontend/                  # Aplikasi ReactJS (Vite multi-page: index.html & dev
     pages/                 # Halaman Home, Prediction, DataDashboard, dan modul dev
     services/hooks/utils/  # api.js, usePrediction.js, formatCurrency.js
   nginx.conf               # Konfigurasi reverse proxy internal container frontend
+  .dockerignore            # Mengecualikan node_modules dan dist dari build context
 backend/                   # Layanan backend FastAPI berbasis arsitektur berlapis
   app/api/                 # Modul route handler (health, predict, model, dataset, etl, stats)
   app/core/                # Konfigurasi aplikasi dan variabel lingkungan
@@ -1683,12 +1684,11 @@ testing/                   # Rangkaian lima suite pengujian otomatis mandiri
   2_unit_testing.py        # Suite 2: Unit testing backend dan analisis statis
   3_integration_testing.py # Suite 3: Pengujian integrasi REST API dan batas isolasi port
   4_functional_testing.py  # Suite 4: Pengujian fungsional UI dan audit kualitas frontend
-  5_model_xai_validation.py# Suite 5: Validasi integritas artefak dan aditivitas Tree SHAP
+  5_model_xai_validation.py # Suite 5: Validasi integritas artefak dan aditivitas Tree SHAP
 ml/scripts/                # Skrip offline (profile_dataset, train_baseline, seed_db)
 data/processed/            # Tempat penyimpanan dataset bersih terfilter (diabaikan git)
 artifacts/models/          # Direktori registri artefak model terversi (xgb-v1)
 infra/nginx/               # Konfigurasi Nginx reverse proxy dua port (:80 dan :8081)
-infra/pgadmin/             # Berkas prapendaftaran koneksi servers.json
 docs/figures/              # Aset gambar laporan (bab4/ PNG transparan, views/ tangkapan layar)
 docker-compose.yml         # Konfigurasi orkestrasi kontainer Docker
 .env.example               # Templat parameter variabel lingkungan
@@ -1722,10 +1722,9 @@ of Concerns*) melalui enam lapisan arsitektur utama:
      memformat nilai moneter ke standar Rupiah.
 
 2. **Ingress & Reverse Proxy Layer (`infra/nginx/`)**:
-   - *Port 80 (Gerbang Publik)*: Menyajikan berkas statis User Portal, mem-proxy
-     permintaan API berawalan `/api/` ke backend, serta secara eksplisit menolak
-     dan memblokir akses ke `developer.html` atau aset bertanda developer dengan
-     kode status HTTP 404.
+   - *Port 80 (Gerbang Publik)*: Menyajikan User Portal dan meneruskan API publik
+     yang dibutuhkan portal. Nginx membalas 404 untuk `developer.html`, aset
+     developer, API administratif, dan detail prediction.
    - *Port 8081 (Gerbang Loopback Pengembang)*: Dibatasi secara ketat pada antarmuka
      lokal `127.0.0.1`. Gerbang ini melayani Developer Portal, menyediakan akses
      ke dokumentasi interaktif Swagger UI (`/docs`, `/openapi.json`), dan mem-proxy
@@ -1959,7 +1958,7 @@ dinyatakan terpenuhi secara lengkap:
 ### 4.5.4 Deployment dan Konfigurasi Lingkungan
 
 Sistem dideploy menggunakan arsitektur berbasis kontainer Docker Compose yang
-mengorkestrasi lima layanan dalam satu jaringan privat:
+mengorkestrasi empat layanan dalam satu jaringan privat:
 
 ```text
 Pengguna Publik (Jaringan Host)
@@ -1967,8 +1966,8 @@ Pengguna Publik (Jaringan Host)
   v
 http://<host>:80 (Nginx Publik)
   |-- /        -> Antarmuka User Portal (index.html)
-  |-- /api/    -> Layanan Backend FastAPI (:8000)
-  (Akses ke developer.html dan aset developer diblokir HTTP 404)
+  |-- API user -> FastAPI: health, prediksi, model aktif, statistik
+  (Halaman/aset developer, API administratif, dan detail prediction diblokir 404)
 
 Pengembang (Localhost / Loopback 127.0.0.1)
   |
@@ -1982,7 +1981,6 @@ http://localhost:8081 (Nginx Loopback)
 
 Backend FastAPI -> Basis data PostgreSQL (:5432, jaringan privat internal)
 Backend FastAPI -> Volume berkas artefak model (bind-mount read-only)
-Pengelola Data  -> pgAdmin 4 pada port host :5050 (mode desktop lokal)
 ```
 
 #### Pengelolaan Variabel Lingkungan
@@ -1990,11 +1988,11 @@ Konfigurasi operasional sistem sepenuhnya dikendalikan melalui variabel lingkung
 pada berkas `.env` (dengan panduan templat pada `.env.example`) tanpa ada nilai yang
 dikodekan langsung ke dalam kode sumber:
 - **Mode Default (Pengembangan Lokal Passwordless)**: Mengaktifkan parameter
-  `POSTGRES_HOST_AUTH_METHOD=trust` dan `PGADMIN_CONFIG_SERVER_MODE=False`, sehingga
-  layanan basis data dan pgAdmin dapat langsung digunakan tanpa memasukkan kata sandi.
+  `POSTGRES_HOST_AUTH_METHOD=trust`, sehingga layanan basis data dapat langsung
+  digunakan tanpa memasukkan kata sandi.
 - **Mode Produksi (Keamanan Penuh)**: Menetapkan kata sandi terenkripsi pada
-  `POSTGRES_PASSWORD`, menggunakan metode autentikasi `scram-sha-256`, menyamakan string
-  koneksi pada `DATABASE_URL`, serta mengembalikan pgAdmin ke mode login multi-pengguna.
+  `POSTGRES_PASSWORD`, menggunakan metode autentikasi `scram-sha-256`, serta
+  menyamakan string koneksi pada `DATABASE_URL`.
 - **Variabel Utama Sistem**: Mengatur parameter `MODEL_DIR`, `MODEL_VERSION`,
   `INFERENCE_TIMEOUT_S`, `MAX_UPLOAD_MB`, `SEED_ON_STARTUP`, `CORS_ORIGINS`, serta
   parameter batas validasi data (`MIN_YEAR`, `MAX_YEAR`, `MAX_KM`).
@@ -2006,7 +2004,7 @@ Sistem dapat dijalankan dengan instruksi standar Docker Compose:
 # 1. Menyiapkan berkas variabel lingkungan (opsional, default telah siap pakai)
 cp .env.example .env
 
-# 2. Membangun dan menjalankan kelima kontainer di latar belakang
+# 2. Membangun dan menjalankan keempat kontainer di latar belakang
 docker compose up -d --build
 
 # 3. Memeriksa status kesehatan kontainer
@@ -2019,7 +2017,6 @@ Daftar tautan akses layanan setelah deployment aktif:
 - Developer Portal (akses khusus loopback): `http://localhost:8081/`
 - Dokumentasi interaktif Swagger UI: `http://localhost:8081/docs`
 - Pemeriksaan kesehatan API: `http://localhost/api/v1/health`
-- Konsol administrasi basis data pgAdmin 4: `http://localhost:5050`
 
 ### 4.5.5 Pemeliharaan dan Keterbatasan Produk
 

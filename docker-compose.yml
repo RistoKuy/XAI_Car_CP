@@ -17,26 +17,6 @@ services:
       timeout: 5s
       retries: 5
 
-  pgadmin:
-    image: dpage/pgadmin4:9
-    ports:
-      - "${PGADMIN_PORT:-5050}:80"
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@carprice.app}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
-      # Desktop mode = tanpa layar login; server carprice terdaftar otomatis via servers.json.
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-      PGADMIN_CONFIG_DESKTOP_USER: "'${PGADMIN_DEFAULT_EMAIL:-admin@carprice.app}'"
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
-      PGADMIN_CONFIG_GLOBALLY_DELIVERABLE: "False"
-      PGADMIN_DISABLE_POSTFIX: "True"
-    volumes:
-      - ./infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   backend:
     build: ./backend
     expose:
@@ -78,4 +58,3 @@ services:
 
 volumes:
   postgres_data:
-  pgadmin_data:
