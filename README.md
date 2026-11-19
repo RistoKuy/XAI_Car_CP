@@ -676,6 +676,27 @@ curl -X POST http://localhost:8081/api/v1/datasets/upload -F "mode=replace" -F "
 Perintah umum: `docker compose logs -f backend`, `docker compose down`,
 `docker compose down -v` (hapus juga data postgres).
 
+### Footprint memori backend
+
+Warmup model membaca `model.json` (21 MB) dan menghasilkan alokasi sementara besar.
+glibc menahan halaman yang sudah di-free sehingga RSS container bertahan di sekitar
+335 MiB. `release_freed_memory()` di `backend/app/core/memory.py` memanggil
+`malloc_trim(0)` setelah lifespan startup selesai, sehingga halaman tersebut
+dikembalikan ke OS.
+
+Hasil `docker stats --no-stream` pada image yang sama:
+
+| Kondisi | MemUsage |
+|---|---:|
+| Sebelum trim | 335,5 MiB |
+| Setelah startup (idle) | 151,5 MiB |
+| Setelah 20 prediksi dan 10 request statistik | 161,7 MiB |
+
+Trim bergantung pada glibc (image `python:3.11-slim`); pada libc lain helper menjadi
+no-op. Peak saat load tetap sekitar 410 MB, jadi jangan set `mem_limit` di bawah
+512 MB.
+
+
 Troubleshooting:
 
 - `backend` restart terus: cek `docker compose logs backend`; pastikan folder

@@ -11,6 +11,7 @@ from app.api.routes_model import router as model_router
 from app.api.routes_prediction import router as prediction_router
 from app.api.routes_stats import router as stats_router
 from app.core.config import get_settings
+from app.core.memory import release_freed_memory
 from app.db.models import Base
 from app.db.session import SessionLocal, engine
 from app.repositories.model_repository import ensure_active_version
@@ -46,6 +47,7 @@ async def lifespan(app: FastAPI):
         seed_if_empty(db, mv.dataset_id, s.SEED_CSV_PATH, s.SEED_ON_STARTUP, s.SEED_FALLBACK_CSV_PATH)
     finally:
         db.close()
+    release_freed_memory()
     yield
 
 
